@@ -76,6 +76,39 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       }
+    },
+    {
+      "name": "linux-daemon",
+      "inherits": "linux-debug",
+      "displayName": "Linux Debug + Daemon",
+      "cacheVariables": {
+        "CLAVI_BUILD_DAEMON": "ON"
+      }
+    },
+    {
+      "name": "windows-daemon",
+      "inherits": "windows-debug",
+      "displayName": "Windows Debug + Daemon",
+      "cacheVariables": {
+        "CLAVI_BUILD_DAEMON": "ON"
+      }
+    },
+    {
+      "name": "linux-fuzz",
+      "inherits": "base",
+      "displayName": "Linux Fuzz (clang -fsanitize=fuzzer)",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CLAVI_BUILD_TESTS": "OFF",
+        "CLAVI_BUILD_DAEMON": "OFF",
+        "CLAVI_BUILD_FUZZ": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -102,6 +135,18 @@
     {
       "name": "windows-release",
       "configurePreset": "windows-release"
+    },
+    {
+      "name": "linux-daemon",
+      "configurePreset": "linux-daemon"
+    },
+    {
+      "name": "windows-daemon",
+      "configurePreset": "windows-daemon"
+    },
+    {
+      "name": "linux-fuzz",
+      "configurePreset": "linux-fuzz"
     }
   ],
   "testPresets": [
