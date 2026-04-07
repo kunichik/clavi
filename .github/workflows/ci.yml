@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    name: ${{ matrix.os }} / ${{ matrix.build_type }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14, windows-2022]
+        build_type: [Debug, Release]
+
+    steps:
+      - name: Checkout with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build clang clang-tidy clang-format
+
+      - name: Install macOS dependencies
+        if: runner.os == 'macOS'
+        run: brew install ninja llvm
+
+      - name: Install Windows dependencies
+        if: runner.os == 'Windows'
+        run: choco install ninja
+
+      - name: Configure (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cmake -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCLAVI_BUILD_TESTS=ON
+
+      - name: Configure (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cmake -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCLAVI_BUILD_TESTS=ON
+
+      - name: Configure (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cmake -B build `
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} `
+            -DCLAVI_BUILD_TESTS=ON
+
+      - name: Build
+        run: cmake --build build --config ${{ matrix.build_type }}
+
+      - name: Test
+        run: ctest --test-dir build --build-config ${{ matrix.build_type }} --output-on-failure -V
+
+      - name: clang-tidy (Linux Debug only)
+        if: runner.os == 'Linux' && matrix.build_type == 'Debug'
+        run: |
+          cmake -B build-tidy \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DCLAVI_BUILD_TESTS=ON
+          cmake --build build-tidy
+          find core/src -name '*.cpp' | xargs clang-tidy \
+            -p build-tidy \
+            --checks='modernize-*,bugprone-*,performance-*,readability-*' \
+            --warnings-as-errors='*'
+
+      - name: clang-format check (Linux Debug only)
+        if: runner.os == 'Linux' && matrix.build_type == 'Debug'
+        run: |
+          find core tests -name '*.cpp' -o -name '*.hpp' | \
+            xargs clang-format --dry-run --Werror
