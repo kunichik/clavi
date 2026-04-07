@@ -6,17 +6,27 @@ All notable changes to Clavi are documented in this file.
 
 ### Added
 - `--config <dir>` CLI flag to override config directory
-- Config mode validation — exits with error on unknown mode values
+- `Config::validate()` method with comprehensive field checks (mode, log level, thresholds, match type)
+- 7 unit tests for config validation + 4 for `PackLoader::load_pack_info()`
+- `PackLoader::load_pack_info()` — proper TOML parsing of `pack.toml` (replaces hacky text scan)
+- `PackInfo` struct with locale, name, version, feature flags, file paths
+- Wayland session type detection at startup (Linux only)
 - `version.hpp` with structured `--version` output: `clavid 0.1.0 (dev)`
 - Ukrainian apostrophe rule `'` → `ʼ` (U+02BC) in translit.toml
 - CMakePresets: `linux-daemon`, `windows-daemon`, `linux-fuzz` presets
+- CPack packaging config (DEB, RPM, DMG, NSIS, ZIP)
+- `release.yml` CI workflow — auto-build packages on `v*` tag push
 - `docs/config-example.toml` — fully annotated reference config
+- `all_keys_mapped` test for LayoutMap (spec-required critical test)
 
 ### Fixed
 - `en/pack.toml` missing `ngram.bin` reference
 - `uk/pack.toml` bridge feature flag set to `true`
 - Deploy: Linux systemd service targets `graphical-session.target`
 - Deploy: macOS plist uses `SuccessfulExit=false` restart semantics
+
+### Refactored
+- `Detector::load_pack()` now uses `PackLoader::load_pack_info()` instead of manual text parsing
 
 ## [0.1.0] — 2026-04-07
 

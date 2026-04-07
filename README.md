@@ -82,7 +82,7 @@ clavi/
 │       ├── word_buffer.cpp
 │       └── main.cpp
 ├── tests/
-│   ├── unit/          # 84 unit test cases
+│   ├── unit/          # 97 unit test cases
 │   └── integration/   # 10 integration test cases (real packs)
 ├── fuzz/              # libFuzzer targets (detector, layout_map, ngram_model)
 ├── packs/             # Language packs (CC BY-SA 4.0)
@@ -99,9 +99,9 @@ clavi/
 
 | Suite | Cases | Assertions |
 |-------|-------|------------|
-| Unit (core + daemon) | 84 | ~285 |
+| Unit (core + daemon) | 97 | ~357 |
 | Integration (real packs) | 10 | 46 |
-| **Total** | **94** | **331** |
+| **Total** | **107** | **403** |
 
 Run: `ctest --test-dir build/<preset> --output-on-failure`
 
