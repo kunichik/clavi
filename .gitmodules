@@ -1,0 +1,9 @@
+[submodule "extern/Catch2"]
+	path = extern/Catch2
+	url = https://github.com/catchorg/Catch2.git
+[submodule "extern/tomlplusplus"]
+	path = extern/tomlplusplus
+	url = https://github.com/marzer/tomlplusplus.git
+[submodule "extern/xxHash"]
+	path = extern/xxHash
+	url = https://github.com/Cyan4973/xxHash.git

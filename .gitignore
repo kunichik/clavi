@@ -1,3 +1,34 @@
+# Build directories
+build/
+cmake-build-*/
+out/
+
+# Generated binary pack data (built by tools/build_*.py)
+*.bin
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.user
+*.suo
+.vs/
+*.xcodeproj/
+*.xcworkspace/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
 # Prerequisites
 *.d
 
