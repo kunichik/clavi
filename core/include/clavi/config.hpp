@@ -26,6 +26,7 @@ struct GeneralConfig {
     bool enabled{true};
     std::vector<std::string> active_pair{"uk", "en"};
     int min_word_length{3};
+    std::string translit_locale{"uk"}; // target locale for Ctrl+T translit mode
 };
 
 struct ExclusionConfig {

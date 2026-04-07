@@ -70,6 +70,21 @@ level = "debug"
     REQUIRE(cfg.logging.level == "debug");
 }
 
+TEST_CASE("Config: default translit_locale is uk", "[config]") {
+    const auto cfg = clavi::Config::load_defaults();
+    REQUIRE(cfg.general.translit_locale == "uk");
+}
+
+TEST_CASE("Config: parses translit_locale from TOML", "[config]") {
+    const auto content = R"(
+[general]
+translit_locale = "pl"
+)";
+    const auto path = write_temp_config(content, "test_translit_locale.toml");
+    const auto cfg = clavi::Config::load(path);
+    REQUIRE(cfg.general.translit_locale == "pl");
+}
+
 TEST_CASE("Config: invalid TOML returns defaults without crash", "[config]") {
     const auto path = write_temp_config("not valid [[[ toml content", "bad_config.toml");
     const auto cfg = clavi::Config::load(path);

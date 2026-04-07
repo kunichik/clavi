@@ -91,5 +91,5 @@ jobs:
       - name: clang-format check (Linux Debug only)
         if: runner.os == 'Linux' && matrix.build_type == 'Debug'
         run: |
-          find core daemon tests -name '*.cpp' -o -name '*.hpp' | \
+          find core daemon tests fuzz -name '*.cpp' -o -name '*.hpp' | \
             xargs clang-format --dry-run --Werror

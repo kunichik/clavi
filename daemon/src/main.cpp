@@ -163,10 +163,8 @@ int main(int argc, char* argv[]) {
     std::atomic<bool> enabled{true};
     std::atomic<bool> translit_active{false};
 
-    // Target locale for translit mode (second in active_pair, i.e. non-Latin)
-    const std::string translit_locale =
-        cfg.general.active_pair.size() >= 2 ? cfg.general.active_pair[1]
-                                            : "uk";
+    // Target locale for translit mode (configurable, defaults to "uk")
+    const std::string translit_locale = cfg.general.translit_locale;
 
     // ── Build callbacks ───────────────────────────────────────────────────────
     clavi::HookCallbacks cbs;
