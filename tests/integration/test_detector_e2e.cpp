@@ -35,7 +35,7 @@ TEST_CASE("E2E: load real uk+en packs", "[e2e][detector]") {
     REQUIRE(det.pack_count() == 2);
 }
 
-TEST_CASE("E2E: ghbdsn -> привіт (Layer 1 remap)", "[e2e][detector]") {
+TEST_CASE("E2E: ghbdsn -> pryvit (Layer 1 remap)", "[e2e][detector]") {
     if (!have_real_packs()) { WARN("Skipping"); return; }
 
     clavi::Detector det;
@@ -59,7 +59,7 @@ TEST_CASE("E2E: hello is NoAction", "[e2e][detector]") {
     REQUIRE(det.analyze("hello").action == clavi::Action::NoAction);
 }
 
-TEST_CASE("E2E: привіт typed correctly is NoAction", "[e2e][detector]") {
+TEST_CASE("E2E: Ukrainian word typed correctly is NoAction", "[e2e][detector]") {
     if (!have_real_packs()) { WARN("Skipping"); return; }
 
     clavi::Detector det;

@@ -33,4 +33,4 @@ set_target_properties(clavi-tests PROPERTIES
 
 include(CTest)
 include(Catch)
-catch_discover_tests(clavi-tests)
+catch_discover_tests(clavi-tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
