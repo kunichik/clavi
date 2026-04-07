@@ -18,16 +18,19 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     list(APPEND DAEMON_SOURCES
         src/platform/switcher_linux.cpp
         src/platform/toast_linux.cpp
+        src/platform/tray_linux.cpp
     )
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     list(APPEND DAEMON_SOURCES
         src/platform/switcher_mac.cpp
         src/platform/toast_mac.cpp
+        src/platform/tray_mac.cpp
     )
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     list(APPEND DAEMON_SOURCES
         src/platform/switcher_win.cpp
         src/platform/toast_win.cpp
+        src/platform/tray_win.cpp
     )
 endif()
 

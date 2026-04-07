@@ -1,6 +1,7 @@
 #include "clavi/hook.hpp"
 #include "clavi/platform/switcher.hpp"
 #include "clavi/platform/toast.hpp"
+#include "clavi/platform/tray.hpp"
 #include "clavi/detector.hpp"
 #include "clavi/config.hpp"
 #include "clavi/logger.hpp"
@@ -152,6 +153,7 @@ int main(int argc, char* argv[]) {
     // ── Platform services ─────────────────────────────────────────────────────
     auto switcher = clavi::ISwitcher::create();
     auto toast    = clavi::IToast::create();
+    auto tray     = clavi::ITray::create();
     clavi::UndoStack undo_stack;
 
     // Currently active locale (we start with the first in the pair)
@@ -236,10 +238,21 @@ int main(int argc, char* argv[]) {
     cbs.on_toggle = [&]() {
         const bool now = !enabled.load();
         enabled.store(now);
+        tray->set_enabled(now);
         toast->show("Clavi", now ? "enabled" : "paused", 1000);
         logger.info(now ? "enabled" : "paused");
         if (verbose) std::printf("[clavid] %s\n", now ? "enabled" : "paused");
     };
+
+    // ── System tray icon ───────────────────────────────────────────────────────
+    clavi::ITray::Callbacks tray_cbs;
+    tray_cbs.on_toggle = cbs.on_toggle; // reuse same toggle logic
+    tray_cbs.on_quit = [&]() {
+        logger.info("quit via tray");
+        g_quit.store(true);
+        g_hook.stop();
+    };
+    tray->init(std::move(tray_cbs));
 
     // ── Start hook (blocks until signal) ─────────────────────────────────────
     if (verbose) std::puts("[clavid] hook started");
@@ -247,6 +260,7 @@ int main(int argc, char* argv[]) {
 
     g_hook.run(std::move(cbs));
 
+    tray->shutdown();
     logger.info("daemon stopped");
     if (verbose) std::puts("[clavid] exiting");
     return 0;
