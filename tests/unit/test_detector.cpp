@@ -185,7 +185,7 @@ fs::path setup_test_packs() {
 
 } // namespace
 
-TEST_CASE("Detector: ghbdsn switches to Ukrainian 'привіт'", "[detector]") {
+TEST_CASE("Detector: ghbdsn switches to Ukrainian (pryvit)", "[detector]") {
     const auto packs_dir = setup_test_packs();
     clavi::Detector det;
     REQUIRE(det.load_pack((packs_dir / "uk").string()));
@@ -208,7 +208,7 @@ TEST_CASE("Detector: 'hello' is NoAction", "[detector]") {
     REQUIRE(result.action == clavi::Action::NoAction);
 }
 
-TEST_CASE("Detector: 'привіт' typed correctly is NoAction", "[detector]") {
+TEST_CASE("Detector: Ukrainian text typed correctly is NoAction", "[detector]") {
     const auto packs_dir = setup_test_packs();
     clavi::Detector det;
     REQUIRE(det.load_pack((packs_dir / "uk").string()));

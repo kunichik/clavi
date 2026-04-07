@@ -12,6 +12,7 @@ target_link_libraries(clavi-tests
     PRIVATE
         clavi-core
         Catch2::Catch2WithMain
+        xxHash::xxhash
 )
 
 set_target_properties(clavi-tests PROPERTIES

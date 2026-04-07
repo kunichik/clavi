@@ -1,7 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include "clavi/pack_loader.hpp"
 
-TEST_CASE("PackLoader: ru_rejected — MUST NEVER BREAK", "[pack_loader][critical]") {
+TEST_CASE("PackLoader: ru_rejected (CRITICAL - MUST NEVER BREAK)", "[pack_loader][critical]") {
     REQUIRE_FALSE(clavi::PackLoader::is_allowed("ru"));
 }
 

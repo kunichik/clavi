@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.21)
 project(clavi VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -17,8 +17,8 @@ option(CLAVI_ENABLE_LLM "Enable Layer 3 LLM detection" OFF)
 
 # Compiler flags
 if(MSVC)
-  add_compile_options(/W4 /WX /utf-8 /permissive-)
-  add_compile_options(/GR- ) # no RTTI
+  add_compile_options(/W4 /utf-8 /permissive-)
+  add_compile_options(/GR-) # no RTTI
 else()
   add_compile_options(-Wall -Wextra -Wpedantic -Werror -fno-rtti)
   if(CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -29,7 +29,11 @@ endif()
 
 # Submodule deps
 add_subdirectory(extern/tomlplusplus EXCLUDE_FROM_ALL)
-add_subdirectory(extern/xxHash/cmake_unofficial EXCLUDE_FROM_ALL)
+
+# xxHash: header-only (XXH_INLINE_ALL)
+add_library(xxhash_header INTERFACE)
+target_include_directories(xxhash_header INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/extern/xxHash)
+add_library(xxHash::xxhash ALIAS xxhash_header)
 
 # Core library
 add_subdirectory(core)

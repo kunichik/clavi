@@ -9,8 +9,10 @@ namespace {
 
 // Build a minimal keyboard_map.bin in memory and write to a temp file
 // Format: KMAP + u32 count + N * (u32 source + u32 target), sorted by source
-std::string write_temp_kmap(const std::vector<std::pair<uint32_t, uint32_t>>& pairs) {
-    std::string path = std::filesystem::temp_directory_path().string() + "/test_kmap.bin";
+std::string write_temp_kmap(const std::vector<std::pair<uint32_t, uint32_t>>& pairs,
+                             const std::string& suffix = "") {
+    const std::string fname = "/test_kmap" + suffix + ".bin";
+    std::string path = std::filesystem::temp_directory_path().string() + fname;
     std::ofstream f(path, std::ios::binary);
     const uint8_t magic[4] = {'K', 'M', 'A', 'P'};
     f.write(reinterpret_cast<const char*>(magic), 4);
@@ -93,8 +95,8 @@ TEST_CASE("LayoutMap: EN to UK roundtrip", "[layout_map]") {
     std::vector<std::pair<uint32_t, uint32_t>> uk_to_en = {
         {0x043F, 0x67},  // п -> g
     };
-    const auto path_fwd = write_temp_kmap(en_to_uk);
-    const auto path_rev = write_temp_kmap(uk_to_en);
+    const auto path_fwd = write_temp_kmap(en_to_uk, "_fwd");
+    const auto path_rev = write_temp_kmap(uk_to_en, "_rev");
 
     clavi::LayoutMap en2uk, uk2en;
     REQUIRE(en2uk.load(path_fwd));

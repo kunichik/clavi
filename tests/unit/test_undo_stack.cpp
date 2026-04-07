@@ -39,7 +39,7 @@ TEST_CASE("UndoStack: LIFO order", "[undo_stack]") {
     REQUIRE_FALSE(stack.pop().has_value());
 }
 
-TEST_CASE("UndoStack: capacity_10 — 11th push evicts oldest", "[undo_stack]") {
+TEST_CASE("UndoStack: capacity_10 -- 11th push evicts oldest", "[undo_stack]") {
     clavi::UndoStack stack;
     REQUIRE(clavi::UndoStack::CAPACITY == 10);
 
