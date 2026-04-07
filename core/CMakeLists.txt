@@ -6,6 +6,7 @@ add_library(clavi-core STATIC
     src/config.cpp
     src/undo_stack.cpp
     src/translit.cpp
+    src/ngram_model.cpp
 )
 
 target_include_directories(clavi-core

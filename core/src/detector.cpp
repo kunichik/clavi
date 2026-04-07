@@ -64,6 +64,10 @@ bool Detector::load_pack(std::string_view pack_dir) {
     const fs::path kmap_path = dir / "keyboard_map.bin";
     if (!pack.to_this.load(kmap_path.string())) return false;
 
+    // Layer 2: n-gram model (optional — missing file is not an error)
+    const fs::path ngram_path = dir / "ngram.bin";
+    (void)pack.ngram.load(ngram_path.string()); // optional, missing is OK
+
     packs_.push_back(std::move(pack));
     return true;
 }
@@ -101,24 +105,87 @@ DetectionResult Detector::analyze(std::string_view typed_word) const {
 
     // Remap the typed word through each pack's layout map and see if the remapped
     // version is found in that pack's dictionary
+    struct Candidate {
+        std::string locale;
+        std::string remapped;
+    };
+    std::vector<Candidate> candidates;
+
     for (const auto& candidate_pack : packs_) {
         const std::string remapped = candidate_pack.to_this.remap(typed_word);
         if (remapped == typed_word) continue; // no change
 
         const std::string lower_remapped = to_lowercase(remapped);
         if (candidate_pack.dictionary.contains(lower_remapped)) {
-            // Make sure the typed form is NOT in any pack (avoid false positives)
             if (typed_matches.empty()) {
-                return DetectionResult{
-                    Action::SwitchAndRetype,
-                    candidate_pack.locale,
-                    remapped
-                };
+                candidates.push_back({candidate_pack.locale, remapped});
             }
         }
     }
 
+    // Layer 1: single unambiguous candidate → switch
+    if (candidates.size() == 1) {
+        return DetectionResult{
+            Action::SwitchAndRetype,
+            candidates[0].locale,
+            candidates[0].remapped
+        };
+    }
+
+    // Layer 2: multiple candidates — use n-gram scoring as tiebreaker
+    if (candidates.size() > 1) {
+        double best_score = -1e9;
+        std::size_t best_idx = 0;
+        bool have_scores = false;
+
+        for (std::size_t i = 0; i < candidates.size(); ++i) {
+            for (const auto& pack : packs_) {
+                if (pack.locale == candidates[i].locale && pack.ngram.loaded()) {
+                    const auto s = pack.ngram.score(candidates[i].remapped);
+                    if (s && *s > best_score) {
+                        best_score = *s;
+                        best_idx = i;
+                        have_scores = true;
+                    }
+                    break;
+                }
+            }
+        }
+
+        if (have_scores) {
+            return DetectionResult{
+                Action::SwitchAndRetype,
+                candidates[best_idx].locale,
+                candidates[best_idx].remapped
+            };
+        }
+        // If no n-gram models loaded, fall through to NoAction
+    }
+
+    // Layer 2 standalone: typed word not in any dict AND no remap candidate,
+    // but n-gram scoring might still identify the language of the typed text
+    // to suggest the current layout is wrong. (Future enhancement)
+
     return DetectionResult{Action::NoAction, {}, {}};
+}
+
+std::string Detector::score_ngrams(std::string_view text,
+                                    double threshold) const {
+    double best_score = -1e9;
+    std::string best_locale;
+
+    for (const auto& pack : packs_) {
+        if (!pack.ngram.loaded()) continue;
+        const auto s = pack.ngram.score(text);
+        if (s && *s > best_score) {
+            best_score = *s;
+            best_locale = pack.locale;
+        }
+    }
+
+    // If best score is below threshold, return empty (inconclusive)
+    if (best_score < threshold && threshold != 0.0) return {};
+    return best_locale;
 }
 
 } // namespace clavi

@@ -22,20 +22,20 @@ import collections
 import argparse
 
 
-def extract_ngrams(word: str, n: int) -> list[str]:
-    """Extract all n-grams from a word with boundary markers."""
-    padded = f"^{word}$"
-    return [padded[i : i + n] for i in range(len(padded) - n + 1)]
+def extract_byte_ngrams(word: str, n: int) -> list[bytes]:
+    """Extract all byte-level n-grams of exactly n bytes from UTF-8 encoded word."""
+    encoded = word.encode("utf-8")
+    return [encoded[i : i + n] for i in range(len(encoded) - n + 1)]
 
 
 def build_ngram_model(
     words: list[str], n: int, min_count: int = 2
-) -> dict[str, float]:
-    counts: dict[str, int] = collections.Counter()
+) -> dict[bytes, float]:
+    """Build byte-level n-gram model. Each n-gram is exactly n bytes."""
+    counts: dict[bytes, int] = collections.Counter()
     for word in words:
-        for gram in extract_ngrams(word.lower(), n):
-            if len(gram.encode("utf-8")) == len(gram) or True:  # allow multi-byte
-                counts[gram] += 1
+        for gram in extract_byte_ngrams(word.lower(), n):
+            counts[gram] += 1
 
     # Filter low-frequency n-grams
     counts = {g: c for g, c in counts.items() if c >= min_count}
@@ -44,26 +44,27 @@ def build_ngram_model(
     if total == 0:
         return {}
 
-    log_probs: dict[str, float] = {}
+    log_probs: dict[bytes, float] = {}
     for gram, count in counts.items():
         log_probs[gram] = math.log(count / total)
 
     return log_probs
 
 
-def write_bin(model: dict[str, float], ngram_size: int, output_path: str) -> None:
-    entries = sorted(model.items(), key=lambda x: x[0].encode("utf-8"))
+def write_bin(model: dict[bytes, float], ngram_size: int, output_path: str) -> None:
+    # Sort by raw bytes (matches C++ std::string lexicographic comparison)
+    entries = sorted(model.items(), key=lambda x: x[0])
 
     with open(output_path, "wb") as f:
         f.write(b"NGRM")
         f.write(struct.pack("<I", len(entries)))
         f.write(struct.pack("B", ngram_size))
 
-        for gram, log_prob in entries:
-            encoded = gram.encode("utf-8")
-            # Pad or truncate to fixed byte width isn't done here since gram lengths
-            # vary in UTF-8 — the reader must know ngram_size (char count) and decode
-            f.write(encoded)
+        for gram_bytes, log_prob in entries:
+            assert len(gram_bytes) == ngram_size, (
+                f"n-gram byte length {len(gram_bytes)} != {ngram_size}"
+            )
+            f.write(gram_bytes)
             f.write(struct.pack("<f", log_prob))
 
 

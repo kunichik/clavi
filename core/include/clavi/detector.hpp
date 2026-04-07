@@ -2,6 +2,7 @@
 
 #include "dictionary.hpp"
 #include "layout_map.hpp"
+#include "ngram_model.hpp"
 
 #include <string>
 #include <string_view>
@@ -23,6 +24,7 @@ struct LoadedPack {
     std::string locale;
     Dictionary dictionary;
     LayoutMap to_this;
+    NgramModel ngram; // Layer 2 (optional — empty if ngram.bin absent)
 };
 
 class Detector {
@@ -42,6 +44,11 @@ private:
 
     [[nodiscard]] static bool is_ambiguous_token(std::string_view word) noexcept;
     [[nodiscard]] static std::string to_lowercase(std::string_view word);
+
+    // Layer 2: score text against all packs' n-gram models.
+    // Returns locale of best-scoring pack, or empty if inconclusive.
+    [[nodiscard]] std::string score_ngrams(std::string_view text,
+                                           double threshold) const;
 };
 
 } // namespace clavi

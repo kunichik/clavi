@@ -7,6 +7,7 @@ add_executable(clavi-tests
     unit/test_undo_stack.cpp
     unit/test_translit.cpp
     unit/test_word_buffer.cpp
+    unit/test_ngram_model.cpp
     # Compile word_buffer directly (no libuiohook dependency)
     ${CMAKE_SOURCE_DIR}/daemon/src/word_buffer.cpp
 )
