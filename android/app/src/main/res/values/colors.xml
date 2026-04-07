@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="keyboard_bg">#FF263238</color>
+    <color name="key_bg">#FF37474F</color>
+    <color name="key_bg_pressed">#FF546E7A</color>
+    <color name="key_special_bg">#FF455A64</color>
+    <color name="key_text">#FFFFFFFF</color>
+    <color name="key_text_secondary">#FFB0BEC5</color>
+    <color name="key_space_bg">#FF546E7A</color>
+    <color name="translit_active">#FF4FC3F7</color>
+    <color name="lang_indicator">#FFFFAB40</color>
+    <color name="key_shadow">#40000000</color>
+    <color name="popup_bg">#FF455A64</color>
+</resources>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Clavi</string>
+    <string name="settings_title">Clavi Settings</string>
+    <string name="subtype_uk">Ukrainian</string>
+    <string name="subtype_en">English</string>
+    <string name="translit_on">Translit ON</string>
+    <string name="translit_off">Translit OFF</string>
+    <string name="lang_uk">UK</string>
+    <string name="lang_en">EN</string>
+    <string name="enable_instructions">To use Clavi keyboard:\n\n1. Open Settings \u2192 System \u2192 Languages &amp; input \u2192 On-screen keyboard\n2. Enable \"Clavi\"\n3. Switch to Clavi in any text field</string>
+</resources>
