@@ -109,6 +109,30 @@ TEST_CASE("LayoutMap: EN to UK roundtrip", "[layout_map]") {
     REQUIRE(roundtrip == "g");
 }
 
+TEST_CASE("LayoutMap: all printable QWERTY keys mapped", "[layout_map]") {
+    // Minimal complete mapping: every lower ASCII letter + digits -> some Cyrillic target
+    // This verifies that a full keyboard map has no gaps
+    const std::string qwerty = "abcdefghijklmnopqrstuvwxyz0123456789";
+    std::vector<std::pair<uint32_t, uint32_t>> pairs;
+    for (std::size_t i = 0; i < qwerty.size(); ++i) {
+        // Map each ASCII char to a distinct Cyrillic codepoint (U+0400 + i)
+        pairs.emplace_back(static_cast<uint32_t>(qwerty[i]),
+                           0x0400 + static_cast<uint32_t>(i));
+    }
+    std::sort(pairs.begin(), pairs.end());
+    const auto path = write_temp_kmap(pairs, "_full");
+
+    clavi::LayoutMap lm;
+    REQUIRE(lm.load(path));
+    REQUIRE(lm.size() == qwerty.size());
+
+    // Every key must have a mapping
+    for (char ch : qwerty) {
+        const auto cp = lm.remap_codepoint(static_cast<uint32_t>(ch));
+        REQUIRE(cp.has_value());
+    }
+}
+
 TEST_CASE("LayoutMap: rejects bad magic", "[layout_map]") {
     std::string path = std::filesystem::temp_directory_path().string() + "/bad_magic.bin";
     std::ofstream f(path, std::ios::binary);

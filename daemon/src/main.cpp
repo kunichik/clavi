@@ -151,6 +151,24 @@ int main(int argc, char* argv[]) {
     }
     logger.info("daemon started");
 
+#if !defined(_WIN32) && !defined(__APPLE__)
+    // Wayland session detection (Linux only)
+    if (const char* session = std::getenv("XDG_SESSION_TYPE")) {
+        if (std::string(session) == "wayland") {
+            // libuiohook needs X11 — check if XWayland is available
+            const bool have_display = std::getenv("DISPLAY") != nullptr;
+            if (have_display) {
+                logger.info("Wayland detected, XWayland fallback active");
+                if (verbose) std::puts("[clavid] Wayland + XWayland detected");
+            } else {
+                logger.warn("pure Wayland detected, keyboard hook unavailable");
+                std::fputs("[clavid] WARNING: pure Wayland without XWayland — "
+                           "keyboard hook will not work\n", stderr);
+            }
+        }
+    }
+#endif
+
     if (!cfg.general.enabled) {
         if (verbose) std::puts("[clavid] disabled via config — exiting");
         logger.info("disabled via config -- exiting");
