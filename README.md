@@ -7,13 +7,17 @@
 
 Type `ghbdsn` when your layout is set to English → Clavi detects it, switches to Ukrainian, and retypes it as `привіт`. Instantly.
 
-## Features (v1.0)
+## Features
 
 - **Automatic detection** — deterministic dictionary lookup (Layer 1) + n-gram statistics (Layer 2)
-- **Non-destructive** — always shows a toast before acting; Ctrl+Z reverts any change
+- **Non-destructive** — toast notification before acting; Ctrl+Z reverts any change
+- **Translit input mode** — press Ctrl+T, type Latin phonetically, get Ukrainian Cyrillic (KMU 2010 standard)
+- **Bridge mode** — always-on translit: every word auto-converts without layout switching (`--mode bridge`)
+- **System tray icon** — right-click context menu: Pause / Enable / Quit (Windows)
 - **Zero cloud** — everything runs locally, no telemetry, no accounts
-- **Ukrainian ↔ English** (primary language pair, more packs coming)
-- **Exclusion lists** — per-word and per-app opt-out
+- **Ukrainian ↔ English** (primary pair; pack format supports any language)
+- **Exclusion lists** — per-word and per-app opt-out via `exclusions.toml`
+- **Diagnostic logging** — rotating file log (5 MB × 3), privacy-safe (no keystrokes logged)
 - **Cross-platform** — Linux (X11/XWayland), macOS, Windows
 
 ## Hard Rules
@@ -67,18 +71,39 @@ ctest --test-dir build/linux-debug --output-on-failure
 ```
 clavi/
 ├── core/              # libclavi-core — platform-agnostic detection engine
-│   ├── include/clavi/ # Public headers
+│   ├── include/clavi/ # Public headers (detector, layout_map, translit, logger, …)
 │   └── src/           # Implementation
-├── daemon/            # clavid — background process (v1.0 in progress)
-├── tests/unit/        # Catch2 unit tests
+├── daemon/            # clavid — background process
+│   ├── include/clavi/
+│   │   └── platform/  # tray.hpp, toast.hpp, switcher.hpp
+│   └── src/
+│       ├── platform/  # tray/toast/switcher impls per OS
+│       ├── hook.cpp   # libuiohook keyboard hook
+│       ├── word_buffer.cpp
+│       └── main.cpp
+├── tests/
+│   ├── unit/          # 84 unit test cases
+│   └── integration/   # 10 integration test cases (real packs)
+├── fuzz/              # libFuzzer targets (detector, layout_map, ngram_model)
 ├── packs/             # Language packs (CC BY-SA 4.0)
-│   ├── uk/            # Ukrainian (primary)
+│   ├── uk/            # Ukrainian (dictionary, keyboard_map, ngram, translit)
 │   └── en/            # English
 ├── tools/             # Python build tools for binary pack data
 ├── data/              # Raw source data (word lists, keyboard maps)
+├── docs/              # config-example.toml and other docs
 ├── deploy/            # Service files (systemd, launchd, Windows)
 └── extern/            # Git submodules (Catch2, toml++, xxHash, libuiohook)
 ```
+
+## Test Suite
+
+| Suite | Cases | Assertions |
+|-------|-------|------------|
+| Unit (core + daemon) | 84 | ~285 |
+| Integration (real packs) | 10 | 46 |
+| **Total** | **94** | **331** |
+
+Run: `ctest --test-dir build/<preset> --output-on-failure`
 
 ## Detection Algorithm
 
@@ -92,14 +117,52 @@ Character n-gram model (3–5 grams). Ukrainian has highly distinctive sequences
 ### Layer 3 — LLM context (~5% of cases, 20–80ms) — v2.0
 llama.cpp with Qwen2-0.5B (q4_K_M). Lazy-loaded on first use.
 
+## Hotkeys
+
+| Hotkey | Action |
+|--------|--------|
+| `Ctrl+Shift+Space` | Toggle Clavi on/off |
+| `Ctrl+Z` | Undo last auto-correction |
+| `Ctrl+T` | Toggle translit input mode |
+
+## CLI Usage
+
+```
+clavid [options]
+
+  -v, --verbose              Print events to stdout
+  --version                  Print version and exit
+  --mode <mode>              Override config mode:
+                               detection  (auto-detect wrong layout)
+                               bridge     (always-on translit, no layout switch)
+  --translit-locale <locale> Override translit target locale (e.g. uk)
+  --packs <dir>              Override language packs directory
+  -h, --help                 Show help
+```
+
+**Examples:**
+
+```bash
+# Auto-detect mode (default)
+clavid
+
+# Bridge mode: type Latin, get Ukrainian, no layout switching
+clavid --mode bridge --translit-locale uk
+
+# Point at local packs during development
+clavid --packs ./packs -v
+```
+
 ## Configuration
 
-Main config: `~/.config/clavi/config.toml`
+Main config: `~/.config/clavi/config.toml` (see [`docs/config-example.toml`](docs/config-example.toml) for all options)
 
 ```toml
 [general]
 enabled = true
 active_pair = ["uk", "en"]
+translit_locale = "uk"   # target for Ctrl+T translit mode
+mode = "detection"       # "detection" | "bridge"
 
 [hotkeys]
 toggle = "Ctrl+Shift+Space"
@@ -108,6 +171,10 @@ undo = "Ctrl+Z"
 [detection]
 layer2_threshold = 0.75
 layer3_enabled = false
+
+[logging]
+enabled = false
+level = "info"           # debug | info | warn | error
 ```
 
 Exclusions: `~/.config/clavi/exclusions.toml`
@@ -118,6 +185,7 @@ skip = ["git", "npm", "sudo"]
 
 [apps]
 skip = ["terminal", "code"]
+match = "exact"          # "exact" | "substring"
 ```
 
 ## License
