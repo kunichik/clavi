@@ -161,7 +161,8 @@ int main(int argc, char* argv[]) {
                                      ? "en"
                                      : cfg.general.active_pair[0];
     std::atomic<bool> enabled{true};
-    std::atomic<bool> translit_active{false};
+    const bool bridge_mode = (cfg.general.mode == "bridge");
+    std::atomic<bool> translit_active{bridge_mode}; // bridge=always-on
 
     // Target locale for translit mode (configurable, defaults to "uk")
     const std::string translit_locale = cfg.general.translit_locale;
@@ -283,6 +284,11 @@ int main(int argc, char* argv[]) {
     tray->init(std::move(tray_cbs));
 
     // ── Start hook (blocks until signal) ─────────────────────────────────────
+    if (bridge_mode) {
+        logger.info(std::string("bridge mode active -> ") + translit_locale);
+        if (verbose) std::printf("[clavid] bridge mode -> %s\n",
+                                 translit_locale.c_str());
+    }
     if (verbose) std::puts("[clavid] hook started");
     logger.info("hook started");
 

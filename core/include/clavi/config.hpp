@@ -27,6 +27,9 @@ struct GeneralConfig {
     std::vector<std::string> active_pair{"uk", "en"};
     int min_word_length{3};
     std::string translit_locale{"uk"}; // target locale for Ctrl+T translit mode
+    // "detection" = auto-detect wrong layout (default)
+    // "bridge"    = always-on translit: type Latin, output Cyrillic, no layout switch
+    std::string mode{"detection"};
 };
 
 struct ExclusionConfig {

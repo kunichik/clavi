@@ -85,6 +85,23 @@ translit_locale = "pl"
     REQUIRE(cfg.general.translit_locale == "pl");
 }
 
+TEST_CASE("Config: default mode is detection", "[config]") {
+    const auto cfg = clavi::Config::load_defaults();
+    REQUIRE(cfg.general.mode == "detection");
+}
+
+TEST_CASE("Config: parses mode = bridge from TOML", "[config]") {
+    const auto content = R"(
+[general]
+mode = "bridge"
+translit_locale = "uk"
+)";
+    const auto path = write_temp_config(content, "test_bridge_mode.toml");
+    const auto cfg = clavi::Config::load(path);
+    REQUIRE(cfg.general.mode == "bridge");
+    REQUIRE(cfg.general.translit_locale == "uk");
+}
+
 TEST_CASE("Config: invalid TOML returns defaults without crash", "[config]") {
     const auto path = write_temp_config("not valid [[[ toml content", "bad_config.toml");
     const auto cfg = clavi::Config::load(path);

@@ -32,6 +32,8 @@ Config Config::load(std::string_view config_path,
                 }
                 if (auto v = (*general)["translit_locale"].value<std::string>())
                     cfg.general.translit_locale = *v;
+                if (auto v = (*general)["mode"].value<std::string>())
+                    cfg.general.mode = *v;
             }
 
             if (const auto* hotkeys = tbl["hotkeys"].as_table()) {
