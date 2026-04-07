@@ -26,7 +26,9 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build clang clang-tidy clang-format
+          sudo apt-get install -y \
+            ninja-build clang clang-tidy clang-format \
+            libx11-dev libxtst-dev libxt-dev
 
       - name: Install macOS dependencies
         if: runner.os == 'macOS'
@@ -43,7 +45,8 @@ jobs:
             -G Ninja \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
             -DCMAKE_CXX_COMPILER=clang++ \
-            -DCLAVI_BUILD_TESTS=ON
+            -DCLAVI_BUILD_TESTS=ON \
+            -DCLAVI_BUILD_DAEMON=ON
 
       - name: Configure (macOS)
         if: runner.os == 'macOS'
@@ -52,14 +55,16 @@ jobs:
             -G Ninja \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
             -DCMAKE_CXX_COMPILER=clang++ \
-            -DCLAVI_BUILD_TESTS=ON
+            -DCLAVI_BUILD_TESTS=ON \
+            -DCLAVI_BUILD_DAEMON=ON
 
       - name: Configure (Windows)
         if: runner.os == 'Windows'
         run: |
           cmake -B build `
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} `
-            -DCLAVI_BUILD_TESTS=ON
+            -DCLAVI_BUILD_TESTS=ON `
+            -DCLAVI_BUILD_DAEMON=ON
 
       - name: Build
         run: cmake --build build --config ${{ matrix.build_type }}
@@ -75,9 +80,10 @@ jobs:
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_CXX_COMPILER=clang++ \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-            -DCLAVI_BUILD_TESTS=ON
+            -DCLAVI_BUILD_TESTS=ON \
+            -DCLAVI_BUILD_DAEMON=ON
           cmake --build build-tidy
-          find core/src -name '*.cpp' | xargs clang-tidy \
+          find core/src daemon/src -name '*.cpp' | xargs clang-tidy \
             -p build-tidy \
             --checks='modernize-*,bugprone-*,performance-*,readability-*' \
             --warnings-as-errors='*'
@@ -85,5 +91,5 @@ jobs:
       - name: clang-format check (Linux Debug only)
         if: runner.os == 'Linux' && matrix.build_type == 'Debug'
         run: |
-          find core tests -name '*.cpp' -o -name '*.hpp' | \
+          find core daemon tests -name '*.cpp' -o -name '*.hpp' | \
             xargs clang-format --dry-run --Werror
