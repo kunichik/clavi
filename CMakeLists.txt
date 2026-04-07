@@ -14,6 +14,7 @@ endif()
 option(CLAVI_BUILD_TESTS "Build unit tests" ON)
 option(CLAVI_BUILD_DAEMON "Build clavid daemon" OFF)
 option(CLAVI_ENABLE_LLM "Enable Layer 3 LLM detection" OFF)
+option(CLAVI_BUILD_FUZZ "Build fuzz targets (requires clang -fsanitize=fuzzer)" OFF)
 
 # Compiler flags
 if(MSVC)
@@ -48,4 +49,9 @@ if(CLAVI_BUILD_TESTS)
   enable_testing()
   add_subdirectory(extern/Catch2 EXCLUDE_FROM_ALL)
   add_subdirectory(tests)
+endif()
+
+# Fuzz targets (clang only)
+if(CLAVI_BUILD_FUZZ)
+  add_subdirectory(fuzz)
 endif()

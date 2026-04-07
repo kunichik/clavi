@@ -1,0 +1,57 @@
+name: Fuzz
+
+on:
+  schedule:
+    - cron: '0 3 * * 0'  # Weekly: Sunday 03:00 UTC
+  workflow_dispatch:       # Manual trigger
+
+jobs:
+  fuzz:
+    name: ${{ matrix.target }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [fuzz_detector, fuzz_layout_map, fuzz_ngram_model]
+
+    steps:
+      - name: Checkout with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build clang
+
+      - name: Configure
+        run: |
+          cmake -B build-fuzz \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCLAVI_BUILD_TESTS=OFF \
+            -DCLAVI_BUILD_DAEMON=OFF \
+            -DCLAVI_BUILD_FUZZ=ON
+
+      - name: Build
+        run: cmake --build build-fuzz --target ${{ matrix.target }}
+
+      - name: Run fuzzer (60s)
+        run: |
+          mkdir -p corpus/${{ matrix.target }}
+          ./build-fuzz/fuzz/${{ matrix.target }} \
+            corpus/${{ matrix.target }} \
+            -max_total_time=60 \
+            -max_len=4096
+
+      - name: Upload crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crash-${{ matrix.target }}
+          path: |
+            crash-*
+            oom-*
+            timeout-*
