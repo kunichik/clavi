@@ -6,6 +6,9 @@ add_executable(clavi-tests
     unit/test_config.cpp
     unit/test_undo_stack.cpp
     unit/test_translit.cpp
+    unit/test_word_buffer.cpp
+    # Compile word_buffer directly (no libuiohook dependency)
+    ${CMAKE_SOURCE_DIR}/daemon/src/word_buffer.cpp
 )
 
 target_link_libraries(clavi-tests
@@ -13,6 +16,11 @@ target_link_libraries(clavi-tests
         clavi-core
         Catch2::Catch2WithMain
         xxHash::xxhash
+)
+
+target_include_directories(clavi-tests
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/daemon/include
 )
 
 set_target_properties(clavi-tests PROPERTIES
