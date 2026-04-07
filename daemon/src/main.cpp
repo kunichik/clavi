@@ -161,12 +161,33 @@ int main(int argc, char* argv[]) {
                                      ? "en"
                                      : cfg.general.active_pair[0];
     std::atomic<bool> enabled{true};
+    std::atomic<bool> translit_active{false};
+
+    // Target locale for translit mode (second in active_pair, i.e. non-Latin)
+    const std::string translit_locale =
+        cfg.general.active_pair.size() >= 2 ? cfg.general.active_pair[1]
+                                            : "uk";
 
     // ── Build callbacks ───────────────────────────────────────────────────────
     clavi::HookCallbacks cbs;
 
     cbs.on_word_commit = [&](const std::string& word) {
         if (!enabled.load()) return;
+
+        // Translit mode: convert Latin input to target script and retype
+        if (translit_active.load()) {
+            const std::string converted =
+                detector.transliterate(word, translit_locale);
+            if (!converted.empty() && converted != word) {
+                const std::size_t char_count = clavi::utf8::count(word);
+                switcher->retype(char_count, converted);
+                logger.debug("translit retype");
+                if (verbose)
+                    std::printf("[clavid] translit: '%s' -> '%s'\n",
+                                word.c_str(), converted.c_str());
+            }
+            return;
+        }
 
         // Check exclusion list
         const std::string lower = clavi::utf8::to_lower(word);
@@ -233,6 +254,15 @@ int main(int argc, char* argv[]) {
             std::printf("[clavid] undo: '%s' -> '%s'\n",
                         entry->switched_text.c_str(),
                         entry->original_text.c_str());
+    };
+
+    cbs.on_translit_toggle = [&]() {
+        const bool now = !translit_active.load();
+        translit_active.store(now);
+        toast->show("Clavi", now ? "translit ON" : "translit OFF", 1000);
+        logger.info(now ? "translit ON" : "translit OFF");
+        if (verbose)
+            std::printf("[clavid] translit %s\n", now ? "ON" : "OFF");
     };
 
     cbs.on_toggle = [&]() {

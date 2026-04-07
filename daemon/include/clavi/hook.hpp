@@ -15,10 +15,14 @@ using UndoCallback = std::function<void()>;
 // Called on toggle hotkey press
 using ToggleCallback = std::function<void()>;
 
+// Called on translit-mode toggle (Ctrl+T)
+using TranslitToggleCallback = std::function<void()>;
+
 struct HookCallbacks {
     WordCommitCallback on_word_commit;
     UndoCallback on_undo;
     ToggleCallback on_toggle;
+    TranslitToggleCallback on_translit_toggle;
 };
 
 class Hook {

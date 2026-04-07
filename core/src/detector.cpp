@@ -68,6 +68,10 @@ bool Detector::load_pack(std::string_view pack_dir) {
     const fs::path ngram_path = dir / "ngram.bin";
     (void)pack.ngram.load(ngram_path.string()); // optional, missing is OK
 
+    // Translit rules (optional — missing file is not an error)
+    const fs::path translit_path = dir / "translit.toml";
+    (void)pack.translit.load(translit_path.string()); // optional, missing is OK
+
     packs_.push_back(std::move(pack));
     return true;
 }
@@ -186,6 +190,16 @@ std::string Detector::score_ngrams(std::string_view text,
     // If best score is below threshold, return empty (inconclusive)
     if (best_score < threshold && threshold != 0.0) return {};
     return best_locale;
+}
+
+std::string Detector::transliterate(std::string_view latin_text,
+                                     std::string_view locale) const {
+    for (const auto& pack : packs_) {
+        if (pack.locale == locale && !pack.translit.empty()) {
+            return pack.translit.transliterate(latin_text);
+        }
+    }
+    return {};
 }
 
 } // namespace clavi

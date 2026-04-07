@@ -55,6 +55,13 @@ static void dispatch_event(uiohook_event* const ev) {
                 break;
             }
 
+            // Ctrl+T → translit mode toggle
+            if (ctrl && !shift && !alt && kc == VC_T) {
+                if (g_word_buf) g_word_buf->feed_clear();
+                if (g_callbacks.on_translit_toggle) g_callbacks.on_translit_toggle();
+                break;
+            }
+
             // Backspace → erase last codepoint in buffer
             if (!ctrl && !alt && kc == VC_BACKSPACE) {
                 if (g_word_buf) g_word_buf->feed_backspace();

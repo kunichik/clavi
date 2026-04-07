@@ -3,6 +3,7 @@
 #include "dictionary.hpp"
 #include "layout_map.hpp"
 #include "ngram_model.hpp"
+#include "translit.hpp"
 
 #include <string>
 #include <string_view>
@@ -24,7 +25,8 @@ struct LoadedPack {
     std::string locale;
     Dictionary dictionary;
     LayoutMap to_this;
-    NgramModel ngram; // Layer 2 (optional — empty if ngram.bin absent)
+    NgramModel ngram;   // Layer 2 (optional — empty if ngram.bin absent)
+    Translit translit;  // Translit mode (optional — empty if translit.toml absent)
 };
 
 class Detector {
@@ -36,6 +38,11 @@ public:
     [[nodiscard]] DetectionResult analyze(std::string_view typed_word) const;
 
     [[nodiscard]] std::size_t pack_count() const noexcept { return packs_.size(); }
+
+    // Translit: convert Latin text to target locale script.
+    // Returns empty string if no translit rules loaded for that locale.
+    [[nodiscard]] std::string transliterate(std::string_view latin_text,
+                                            std::string_view locale) const;
 
 private:
     std::vector<LoadedPack> packs_;

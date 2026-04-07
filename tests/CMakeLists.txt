@@ -10,6 +10,7 @@ add_executable(clavi-tests
     unit/test_ngram_model.cpp
     unit/test_logger.cpp
     integration/test_detector_e2e.cpp
+    integration/test_translit_kmu.cpp
     # Compile word_buffer directly (no libuiohook dependency)
     ${CMAKE_SOURCE_DIR}/daemon/src/word_buffer.cpp
 )
