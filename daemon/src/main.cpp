@@ -1,3 +1,4 @@
+#include "clavi/version.hpp"
 #include "clavi/hook.hpp"
 #include "clavi/platform/switcher.hpp"
 #include "clavi/platform/toast.hpp"
@@ -80,7 +81,7 @@ int main(int argc, char* argv[]) {
         if (arg == "--verbose" || arg == "-v") {
             verbose = true;
         } else if (arg == "--version") {
-            std::puts("clavid 0.1.0");
+            std::printf("clavid %s (%s)\n", clavi::VERSION, clavi::GIT_HASH);
             return 0;
         } else if (arg == "--help" || arg == "-h") {
             std::puts(
