@@ -109,6 +109,62 @@ TEST_CASE("Config: invalid TOML returns defaults without crash", "[config]") {
     REQUIRE(cfg.general.enabled == true);
 }
 
+// ── Config::validate() tests ─────────────────────────────────────────────────
+
+TEST_CASE("Config: defaults pass validation", "[config][validate]") {
+    const auto cfg = clavi::Config::load_defaults();
+    REQUIRE(cfg.validate().empty());
+}
+
+TEST_CASE("Config: invalid mode caught by validate", "[config][validate]") {
+    auto cfg = clavi::Config::load_defaults();
+    cfg.general.mode = "bogus";
+    const auto errs = cfg.validate();
+    REQUIRE(errs.size() == 1);
+    REQUIRE(errs[0].find("general.mode") != std::string::npos);
+}
+
+TEST_CASE("Config: invalid log level caught by validate", "[config][validate]") {
+    auto cfg = clavi::Config::load_defaults();
+    cfg.logging.level = "verbose";
+    const auto errs = cfg.validate();
+    REQUIRE(errs.size() == 1);
+    REQUIRE(errs[0].find("logging.level") != std::string::npos);
+}
+
+TEST_CASE("Config: layer2_threshold out of range", "[config][validate]") {
+    auto cfg = clavi::Config::load_defaults();
+    cfg.detection.layer2_threshold = 1.5;
+    const auto errs = cfg.validate();
+    REQUIRE(errs.size() == 1);
+    REQUIRE(errs[0].find("layer2_threshold") != std::string::npos);
+}
+
+TEST_CASE("Config: empty active_pair caught", "[config][validate]") {
+    auto cfg = clavi::Config::load_defaults();
+    cfg.general.active_pair.clear();
+    const auto errs = cfg.validate();
+    REQUIRE(errs.size() == 1);
+    REQUIRE(errs[0].find("active_pair") != std::string::npos);
+}
+
+TEST_CASE("Config: invalid exclusion match type", "[config][validate]") {
+    auto cfg = clavi::Config::load_defaults();
+    cfg.exclusions.match = "glob";
+    const auto errs = cfg.validate();
+    REQUIRE(errs.size() == 1);
+    REQUIRE(errs[0].find("exclusions.match") != std::string::npos);
+}
+
+TEST_CASE("Config: multiple errors reported at once", "[config][validate]") {
+    auto cfg = clavi::Config::load_defaults();
+    cfg.general.mode = "invalid";
+    cfg.logging.level = "invalid";
+    cfg.detection.layer2_threshold = -0.5;
+    const auto errs = cfg.validate();
+    REQUIRE(errs.size() == 3);
+}
+
 TEST_CASE("Config: parses exclusions.toml", "[config]") {
     const auto excl = R"(
 [words]

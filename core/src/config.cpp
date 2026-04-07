@@ -89,4 +89,41 @@ Config Config::load(std::string_view config_path,
     return cfg;
 }
 
+std::vector<std::string> Config::validate() const noexcept {
+    std::vector<std::string> errors;
+
+    // mode
+    if (general.mode != "detection" && general.mode != "bridge")
+        errors.push_back("general.mode: expected 'detection' or 'bridge', got '" +
+                         general.mode + "'");
+
+    // active_pair
+    if (general.active_pair.empty())
+        errors.push_back("general.active_pair: must contain at least one locale");
+
+    // min_word_length
+    if (general.min_word_length < 1)
+        errors.push_back("general.min_word_length: must be >= 1");
+
+    // logging level
+    const auto& lvl = logging.level;
+    if (lvl != "debug" && lvl != "info" && lvl != "warn" && lvl != "error")
+        errors.push_back("logging.level: expected debug|info|warn|error, got '" +
+                         lvl + "'");
+
+    // detection thresholds
+    if (detection.layer2_threshold < 0.0 || detection.layer2_threshold > 1.0)
+        errors.push_back("detection.layer2_threshold: must be in range [0.0, 1.0]");
+    if (detection.layer3_timeout_ms < 0)
+        errors.push_back("detection.layer3_timeout_ms: must be >= 0");
+
+    // exclusion match type
+    const auto& m = exclusions.match;
+    if (m != "exact" && m != "substring" && m != "regex")
+        errors.push_back("exclusions.match: expected exact|substring|regex, got '" +
+                         m + "'");
+
+    return errors;
+}
+
 } // namespace clavi

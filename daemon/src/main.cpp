@@ -126,11 +126,11 @@ int main(int argc, char* argv[]) {
     if (!cli_mode.empty())     cfg.general.mode             = cli_mode;
     if (!cli_translit.empty()) cfg.general.translit_locale  = cli_translit;
 
-    // Validate mode
-    if (cfg.general.mode != "detection" && cfg.general.mode != "bridge") {
-        std::fprintf(stderr, "[clavid] error: unknown mode '%s' "
-                     "(expected 'detection' or 'bridge')\n",
-                     cfg.general.mode.c_str());
+    // Validate config
+    const auto errors = cfg.validate();
+    if (!errors.empty()) {
+        for (const auto& err : errors)
+            std::fprintf(stderr, "[clavid] config error: %s\n", err.c_str());
         return 1;
     }
 

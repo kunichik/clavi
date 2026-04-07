@@ -48,6 +48,9 @@ struct Config {
     [[nodiscard]] static Config load_defaults() noexcept;
     [[nodiscard]] static Config load(std::string_view config_path,
                                      std::string_view exclusions_path = "") noexcept;
+
+    // Returns empty vector if config is valid; otherwise lists human-readable errors.
+    [[nodiscard]] std::vector<std::string> validate() const noexcept;
 };
 
 } // namespace clavi
