@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <functional>
 #include <string>
 
@@ -34,10 +35,10 @@ public:
     // Signal the hook to stop (safe to call from any thread)
     void stop() noexcept;
 
-    [[nodiscard]] bool is_running() const noexcept { return running_; }
+    [[nodiscard]] bool is_running() const noexcept { return running_.load(); }
 
 private:
-    bool running_{false};
+    std::atomic<bool> running_{false};
 };
 
 } // namespace clavi

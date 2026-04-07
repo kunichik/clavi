@@ -6,12 +6,15 @@
 #include "clavi/undo_stack.hpp"
 #include "clavi/utf8_utils.hpp"
 
+#ifdef _MSC_VER
+#pragma warning(disable : 4996) // getenv deprecation
+#endif
+
 #include <atomic>
 #include <csignal>
 #include <cstdio>
 #include <filesystem>
 #include <string>
-#include <thread>
 
 namespace {
 
@@ -193,7 +196,7 @@ int main(int argc, char* argv[]) {
         if (!entry) return;
 
         // Switch back
-        switcher->switch_layout(entry->locale_before);
+        (void)switcher->switch_layout(entry->locale_before);
         const std::size_t retype_count = clavi::utf8::count(entry->switched_text);
         switcher->retype(retype_count, entry->original_text);
 
