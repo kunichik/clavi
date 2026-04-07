@@ -75,6 +75,7 @@ int main(int argc, char* argv[]) {
     std::string cli_mode;          // overrides config general.mode
     std::string cli_translit;      // overrides config general.translit_locale
     std::string cli_packs;         // overrides pack directory
+    std::string cli_config;        // overrides config directory
 
     for (int i = 1; i < argc; ++i) {
         const std::string arg(argv[i]);
@@ -95,6 +96,7 @@ int main(int argc, char* argv[]) {
                 "                               bridge (always-on translit)\n"
                 "  --translit-locale <locale> Override translit target locale (e.g. uk)\n"
                 "  --packs <dir>              Override language packs directory\n"
+                "  --config <dir>             Override config directory\n"
                 "  -h, --help                 Show this help"
             );
             return 0;
@@ -104,6 +106,8 @@ int main(int argc, char* argv[]) {
             cli_translit = argv[++i];
         } else if (arg == "--packs" && i + 1 < argc) {
             cli_packs = argv[++i];
+        } else if (arg == "--config" && i + 1 < argc) {
+            cli_config = argv[++i];
         }
     }
 
@@ -112,7 +116,7 @@ int main(int argc, char* argv[]) {
     std::signal(SIGTERM, signal_handler);
 
     // ── Load config ───────────────────────────────────────────────────────────────
-    const fs::path cfg_dir  = config_dir();
+    const fs::path cfg_dir  = cli_config.empty() ? config_dir() : fs::path(cli_config);
     const fs::path cfg_path = cfg_dir / "config.toml";
     const fs::path excl_path = cfg_dir / "exclusions.toml";
 
@@ -121,6 +125,14 @@ int main(int argc, char* argv[]) {
     // Apply CLI overrides (take precedence over config file)
     if (!cli_mode.empty())     cfg.general.mode             = cli_mode;
     if (!cli_translit.empty()) cfg.general.translit_locale  = cli_translit;
+
+    // Validate mode
+    if (cfg.general.mode != "detection" && cfg.general.mode != "bridge") {
+        std::fprintf(stderr, "[clavid] error: unknown mode '%s' "
+                     "(expected 'detection' or 'bridge')\n",
+                     cfg.general.mode.c_str());
+        return 1;
+    }
 
     // ── Diagnostic logger (non-content, privacy-safe) ────────────────────────
     clavi::Logger logger;

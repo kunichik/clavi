@@ -8,7 +8,7 @@ license = "CC BY-SA 4.0"
 [features]
 switch = true
 translit = true
-bridge = false
+bridge = true
 
 [files]
 keyboard_map = "keyboard_map.bin"

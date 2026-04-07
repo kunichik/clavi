@@ -13,3 +13,4 @@ bridge = false
 [files]
 keyboard_map = "keyboard_map.bin"
 dictionary = "dictionary.bin"
+ngram = "ngram.bin"
