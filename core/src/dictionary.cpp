@@ -1,7 +1,6 @@
 #include "clavi/dictionary.hpp"
+#include "clavi/utf8_utils.hpp"
 
-#include <algorithm>
-#include <cctype>
 #include <cstring>
 #include <fstream>
 #include <vector>
@@ -15,15 +14,6 @@ namespace {
 
 constexpr uint8_t MAGIC[4] = {'C', 'L', 'A', 'V'};
 constexpr uint64_t EMPTY_SLOT = 0x0000000000000000ULL;
-
-std::string lowercase_utf8(std::string_view word) {
-    std::string out;
-    out.reserve(word.size());
-    for (unsigned char c : word) {
-        out += static_cast<char>(std::tolower(static_cast<int>(c)));
-    }
-    return out;
-}
 
 } // namespace
 
@@ -83,7 +73,7 @@ bool Dictionary::load(std::string_view path) {
 bool Dictionary::contains(std::string_view word) const noexcept {
     if (table_.empty()) return false;
 
-    const std::string lower = lowercase_utf8(word);
+    const std::string lower = utf8::to_lower(word);
     const uint64_t h = hash_word(lower);
     const std::size_t mask = table_.size() - 1;
     std::size_t idx = static_cast<std::size_t>(h) & mask;
