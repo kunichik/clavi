@@ -5,7 +5,6 @@
 #include <array>
 #include <algorithm>
 #include <filesystem>
-#include <fstream>
 
 namespace clavi {
 
@@ -33,44 +32,29 @@ bool Detector::load_pack(std::string_view pack_dir) {
     namespace fs = std::filesystem;
     const fs::path dir(pack_dir);
 
-    // Read locale from pack.toml (simple scan — full TOML parse in pack_loader.cpp)
+    // Parse pack.toml with full TOML parser
     const fs::path pack_toml = dir / "pack.toml";
-    std::string locale;
-    {
-        std::ifstream f(pack_toml);
-        if (!f.is_open()) return false;
-        std::string line;
-        while (std::getline(f, line)) {
-            if (line.find("locale") != std::string::npos &&
-                line.find('=') != std::string::npos) {
-                const auto q1 = line.find('"');
-                const auto q2 = line.rfind('"');
-                if (q1 != std::string::npos && q2 != q1) {
-                    locale = line.substr(q1 + 1, q2 - q1 - 1);
-                    break;
-                }
-            }
-        }
-    }
-    if (locale.empty()) return false;
-    if (!PackLoader::is_allowed(locale)) return false;
+    const auto info = PackLoader::load_pack_info(pack_toml.string());
+    if (!info) return false;
+    if (!PackLoader::is_allowed(info->locale)) return false;
 
     LoadedPack pack;
-    pack.locale = locale;
+    pack.locale = info->locale;
 
-    const fs::path dict_path = dir / "dictionary.bin";
-    if (!pack.dictionary.load(dict_path.string())) return false;
+    // Use file paths from pack.toml, fallback to defaults
+    const std::string dict_file = info->file_dictionary.empty() ? "dictionary.bin" : info->file_dictionary;
+    const std::string kmap_file = info->file_keyboard_map.empty() ? "keyboard_map.bin" : info->file_keyboard_map;
 
-    const fs::path kmap_path = dir / "keyboard_map.bin";
-    if (!pack.to_this.load(kmap_path.string())) return false;
+    if (!pack.dictionary.load((dir / dict_file).string())) return false;
+    if (!pack.to_this.load((dir / kmap_file).string())) return false;
 
     // Layer 2: n-gram model (optional — missing file is not an error)
-    const fs::path ngram_path = dir / "ngram.bin";
-    (void)pack.ngram.load(ngram_path.string()); // optional, missing is OK
+    const std::string ngram_file = info->file_ngram.empty() ? "ngram.bin" : info->file_ngram;
+    (void)pack.ngram.load((dir / ngram_file).string());
 
     // Translit rules (optional — missing file is not an error)
-    const fs::path translit_path = dir / "translit.toml";
-    (void)pack.translit.load(translit_path.string()); // optional, missing is OK
+    const std::string translit_file = info->file_translit.empty() ? "translit.toml" : info->file_translit;
+    (void)pack.translit.load((dir / translit_file).string());
 
     packs_.push_back(std::move(pack));
     return true;
