@@ -3,6 +3,7 @@
 #include "clavi/platform/toast.hpp"
 #include "clavi/detector.hpp"
 #include "clavi/config.hpp"
+#include "clavi/logger.hpp"
 #include "clavi/undo_stack.hpp"
 #include "clavi/utf8_utils.hpp"
 
@@ -86,20 +87,33 @@ int main(int argc, char* argv[]) {
     std::signal(SIGINT,  signal_handler);
     std::signal(SIGTERM, signal_handler);
 
-    // ── Load config ───────────────────────────────────────────────────────────
+    // ── Load config ───────────────────────────────────────────────────────────────
     const fs::path cfg_dir  = config_dir();
     const fs::path cfg_path = cfg_dir / "config.toml";
     const fs::path excl_path = cfg_dir / "exclusions.toml";
 
     const clavi::Config cfg = clavi::Config::load(cfg_path.string(), excl_path.string());
 
+    // ── Diagnostic logger (non-content, privacy-safe) ────────────────────────
+    clavi::Logger logger;
+    if (cfg.logging.enabled) {
+        const auto log_level = clavi::parse_log_level(cfg.logging.level);
+        const std::string log_path = clavi::Logger::default_log_path();
+        if (!logger.open(log_path, log_level)) {
+            std::fprintf(stderr, "[clavid] warning: cannot open log: %s\n",
+                         log_path.c_str());
+        }
+    }
+
     if (verbose) {
         std::printf("[clavid] config dir: %s\n", cfg_dir.string().c_str());
         std::printf("[clavid] enabled: %s\n", cfg.general.enabled ? "true" : "false");
     }
+    logger.info("daemon started");
 
     if (!cfg.general.enabled) {
         if (verbose) std::puts("[clavid] disabled via config — exiting");
+        logger.info("disabled via config -- exiting");
         return 0;
     }
 
@@ -113,13 +127,16 @@ int main(int argc, char* argv[]) {
             if (verbose)
                 std::fprintf(stderr, "[clavid] pack not found: %s\n",
                              pack_path.string().c_str());
+            logger.warn(std::string("pack not found: ") + locale);
             continue;
         }
         if (detector.load_pack(pack_path.string())) {
             if (verbose) std::printf("[clavid] loaded pack: %s\n", locale.c_str());
+            logger.info(std::string("pack loaded: ") + locale);
         } else {
             std::fprintf(stderr, "[clavid] failed to load pack: %s\n",
                          locale.c_str());
+            logger.error(std::string("failed to load pack: ") + locale);
         }
     }
 
@@ -128,6 +145,7 @@ int main(int argc, char* argv[]) {
             "[clavid] need at least 2 language packs to operate "
             "(found %zu). Check packs directory: %s\n",
             detector.pack_count(), pdir.string().c_str());
+        logger.error("insufficient packs -- exiting");
         return 1;
     }
 
@@ -169,6 +187,8 @@ int main(int argc, char* argv[]) {
             if (verbose)
                 std::fprintf(stderr, "[clavid] switch_layout(%s) failed\n",
                              result.target_locale.c_str());
+            logger.warn(std::string("switch_layout failed: ") +
+                        result.target_locale);
             return;
         }
 
@@ -185,8 +205,11 @@ int main(int argc, char* argv[]) {
             result.corrected_text + " \xE2\x86\x90 " + word; // "corrected ← original"
         toast->show("Clavi", toast_body, 2000);
 
+        // PRIVACY: log locale change only, never the typed/remapped content
+        logger.info(std::string("Layer 1: SwitchAndRetype -> ") +
+                    result.target_locale);
         if (verbose)
-            std::printf("[clavid] switched: '%s' → '%s' (%s)\n",
+            std::printf("[clavid] switched: '%s' -> '%s' (%s)\n",
                         word.c_str(), result.corrected_text.c_str(),
                         result.target_locale.c_str());
     };
@@ -203,8 +226,9 @@ int main(int argc, char* argv[]) {
         current_locale = entry->locale_before;
         toast->show("Clavi", std::string("undo: ") + entry->original_text, 1500);
 
+        logger.info(std::string("undo -> ") + entry->locale_before);
         if (verbose)
-            std::printf("[clavid] undo: '%s' → '%s'\n",
+            std::printf("[clavid] undo: '%s' -> '%s'\n",
                         entry->switched_text.c_str(),
                         entry->original_text.c_str());
     };
@@ -213,14 +237,17 @@ int main(int argc, char* argv[]) {
         const bool now = !enabled.load();
         enabled.store(now);
         toast->show("Clavi", now ? "enabled" : "paused", 1000);
+        logger.info(now ? "enabled" : "paused");
         if (verbose) std::printf("[clavid] %s\n", now ? "enabled" : "paused");
     };
 
     // ── Start hook (blocks until signal) ─────────────────────────────────────
     if (verbose) std::puts("[clavid] hook started");
+    logger.info("hook started");
 
     g_hook.run(std::move(cbs));
 
+    logger.info("daemon stopped");
     if (verbose) std::puts("[clavid] exiting");
     return 0;
 }
