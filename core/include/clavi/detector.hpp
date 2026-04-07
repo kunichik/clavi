@@ -7,6 +7,7 @@
 
 #include <string>
 #include <string_view>
+#include <unordered_set>
 
 namespace clavi {
 
@@ -35,6 +36,10 @@ public:
 
     [[nodiscard]] bool load_pack(std::string_view pack_dir);
 
+    // Set exclusion words (from exclusions.toml [words].skip).
+    // These words will never trigger a switch.
+    void set_skip_words(std::vector<std::string> words) noexcept;
+
     [[nodiscard]] DetectionResult analyze(std::string_view typed_word) const;
 
     [[nodiscard]] std::size_t pack_count() const noexcept { return packs_.size(); }
@@ -46,6 +51,7 @@ public:
 
 private:
     std::vector<LoadedPack> packs_;
+    std::unordered_set<std::string> skip_words_;
 
     static constexpr std::size_t MIN_WORD_LENGTH = 3;
 

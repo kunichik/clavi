@@ -241,6 +241,22 @@ TEST_CASE("Detector: ambiguous token skip-list is NoAction", "[detector]") {
     REQUIRE(det.analyze("ok").action == clavi::Action::NoAction);
 }
 
+TEST_CASE("Detector: user-defined skip_words are excluded", "[detector]") {
+    const auto packs_dir = setup_test_packs();
+    clavi::Detector det;
+    REQUIRE(det.load_pack((packs_dir / "uk").string()));
+    REQUIRE(det.load_pack((packs_dir / "en").string()));
+
+    // "ghbdsn" would normally trigger SwitchAndRetype (maps to привіт)
+    const auto before = det.analyze("ghbdsn");
+    REQUIRE(before.action == clavi::Action::SwitchAndRetype);
+
+    // After adding it to skip_words, it should be NoAction
+    det.set_skip_words({"ghbdsn"});
+    const auto after = det.analyze("ghbdsn");
+    REQUIRE(after.action == clavi::Action::NoAction);
+}
+
 TEST_CASE("Detector: unknown garbage word is NoAction", "[detector]") {
     const auto packs_dir = setup_test_packs();
     clavi::Detector det;

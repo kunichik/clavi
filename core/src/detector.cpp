@@ -28,6 +28,12 @@ std::string Detector::to_lowercase(std::string_view word) {
     return utf8::to_lower(word);
 }
 
+void Detector::set_skip_words(std::vector<std::string> words) noexcept {
+    skip_words_.clear();
+    for (auto& w : words)
+        skip_words_.insert(std::move(w));
+}
+
 bool Detector::load_pack(std::string_view pack_dir) {
     namespace fs = std::filesystem;
     const fs::path dir(pack_dir);
@@ -68,6 +74,11 @@ DetectionResult Detector::analyze(std::string_view typed_word) const {
 
     // Ambiguous token skip-list
     if (is_ambiguous_token(typed_word)) {
+        return DetectionResult{Action::NoAction, {}, {}};
+    }
+
+    // User-defined exclusion words (from exclusions.toml)
+    if (!skip_words_.empty() && skip_words_.count(std::string(typed_word))) {
         return DetectionResult{Action::NoAction, {}, {}};
     }
 

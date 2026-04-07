@@ -198,6 +198,16 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    // Wire exclusion words into detector
+    if (!cfg.exclusions.skip_words.empty()) {
+        detector.set_skip_words(cfg.exclusions.skip_words);
+        if (verbose)
+            std::printf("[clavid] loaded %zu exclusion words\n",
+                        cfg.exclusions.skip_words.size());
+        logger.info("exclusion words loaded: " +
+                    std::to_string(cfg.exclusions.skip_words.size()));
+    }
+
     if (detector.pack_count() < 2) {
         std::fprintf(stderr,
             "[clavid] need at least 2 language packs to operate "
