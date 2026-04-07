@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  NSSM service configuration for Windows.
+  Install:
+    nssm install clavi "C:\Program Files\Clavi\clavid.exe"
+  Or for simple startup entry (v1.0):
+    reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v Clavi /d "\"C:\Program Files\Clavi\clavid.exe\"" /f
+-->
+<service>
+    <name>clavi</name>
+    <description>Clavi keyboard layout auto-switcher daemon</description>
+    <executable>clavid.exe</executable>
+    <startarguments></startarguments>
+    <logpath>%APPDATA%\Clavi\logs</logpath>
+    <log mode="roll">
+        <sizeThreshold>5120</sizeThreshold>
+        <keepFiles>3</keepFiles>
+    </log>
+</service>

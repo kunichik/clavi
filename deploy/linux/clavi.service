@@ -1,0 +1,20 @@
+[Unit]
+Description=Clavi keyboard layout auto-switcher
+Documentation=https://github.com/kunichik/clavi
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/clavid
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=3
+
+# libuiohook requires access to the X11 display.
+# Uncomment and adjust if needed (most DEs export these automatically):
+# Environment=DISPLAY=:0
+# Environment=XAUTHORITY=%h/.Xauthority
+
+[Install]
+WantedBy=graphical-session.target

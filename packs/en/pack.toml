@@ -1,0 +1,16 @@
+[pack]
+locale = "en"
+name = "English"
+version = "1.0.0"
+author = "Clavi Project"
+license = "CC BY-SA 4.0"
+
+[features]
+switch = true
+translit = false
+bridge = false
+
+[files]
+keyboard_map = "keyboard_map.bin"
+dictionary = "dictionary.bin"
+ngram = "ngram.bin"

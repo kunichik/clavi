@@ -1,0 +1,73 @@
+# Clavi daemon configuration
+# Default location:
+#   Windows : %LOCALAPPDATA%\clavi\config.toml
+#   macOS   : ~/Library/Application Support/clavi/config.toml
+#   Linux   : $XDG_CONFIG_HOME/clavi/config.toml
+#              (or ~/.config/clavi/config.toml)
+
+# ── General ──────────────────────────────────────────────────────────────────
+
+[general]
+# Enable/disable Clavi at startup (can be toggled at runtime via Ctrl+Shift+Space)
+enabled = true
+
+# Language pair to operate on.
+# First element = the layout you usually type on (source).
+# Second element = the layout you accidentally type on.
+active_pair = ["uk", "en"]
+
+# Minimum word length before detection kicks in (shorter words are ignored).
+min_word_length = 3
+
+# Target locale for Ctrl+T translit mode.
+# When translit mode is active (Ctrl+T), typed Latin words are converted to
+# this locale's script using the pack's translit.toml rules (KMU 2010 for uk).
+translit_locale = "uk"
+
+# Operating mode:
+#   "detection" (default) — auto-detect mis-typed layout, switch and retype
+#   "bridge"              — always-on translit: type Latin, output Cyrillic
+#                           no keyboard layout switching occurs
+mode = "detection"
+
+
+# ── Hotkeys ──────────────────────────────────────────────────────────────────
+
+[hotkeys]
+# Toggle Clavi on/off
+toggle = "Ctrl+Shift+Space"
+
+# Undo last auto-correction
+undo = "Ctrl+Z"
+
+# Toggle translit mode (only in "detection" mode; in "bridge" mode, Ctrl+T
+# turns bridge temporarily off and back on)
+# translit = "Ctrl+T"   # hardcoded, not yet configurable
+
+
+# ── Detection ────────────────────────────────────────────────────────────────
+
+[detection]
+# Minimum n-gram score advantage (Layer 2) required to break a tie between
+# two remap candidates.  Range 0.0–1.0; lower = more aggressive switching.
+layer2_threshold = 0.75
+
+# Layer 3 (LLM context) timeout in milliseconds (future, requires CLAVI_ENABLE_LLM)
+layer3_timeout_ms = 150
+
+# Enable Layer 3 LLM context-aware detection (requires llama.cpp + model)
+layer3_enabled = false
+
+
+# ── Logging ──────────────────────────────────────────────────────────────────
+
+[logging]
+# Enable file-based diagnostic logging.
+# Log file locations:
+#   Windows : %LOCALAPPDATA%\clavi\clavi.log
+#   macOS   : ~/Library/Logs/clavi/clavi.log
+#   Linux   : $XDG_DATA_HOME/clavi/clavi.log
+enabled = false
+
+# Log level: "debug" | "info" | "warn" | "error"
+level = "info"

@@ -1,0 +1,11 @@
+BasedOnStyle: Google
+ColumnLimit: 100
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+NamespaceIndentation: None
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+AlwaysBreakTemplateDeclarations: Yes
+IncludeBlocks: Regroup
+SortIncludes: CaseSensitive

@@ -1,0 +1,79 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            preset: linux-release
+            generators: "DEB;RPM"
+          - os: macos-14
+            preset: macos-release
+            generators: "DragNDrop"
+          - os: windows-2022
+            preset: windows-release
+            generators: "NSIS;ZIP"
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install deps (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libxtst-dev libnotify-dev \
+                                  libxkbcommon-dev rpm
+
+      - name: Configure
+        run: >
+          cmake --preset ${{ matrix.preset }}
+          -DCLAVI_BUILD_DAEMON=ON
+          -DCLAVI_BUILD_TESTS=OFF
+          -DCLAVI_BUILD_FUZZ=OFF
+
+      - name: Build
+        run: cmake --build build/${{ matrix.preset }} --config Release
+
+      - name: Package
+        working-directory: build/${{ matrix.preset }}
+        run: cpack -G "${{ matrix.generators }}" -C Release
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ matrix.os }}
+          path: |
+            build/${{ matrix.preset }}/*.deb
+            build/${{ matrix.preset }}/*.rpm
+            build/${{ matrix.preset }}/*.dmg
+            build/${{ matrix.preset }}/*.msi
+            build/${{ matrix.preset }}/*.zip
+            build/${{ matrix.preset }}/*.exe
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: packages
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: packages/*
