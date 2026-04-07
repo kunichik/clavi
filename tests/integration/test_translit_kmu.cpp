@@ -147,6 +147,23 @@ TEST_CASE("KMU2010: extended Latin (x, c, q, w)", "[translit][kmu][integration]"
     REQUIRE(tr.transliterate("w") == "\xD0\xB2");          // в
 }
 
+TEST_CASE("KMU2010: Ukrainian apostrophe ' -> ʼ (U+02BC)", "[translit][kmu][integration]") {
+    if (!have_translit()) { WARN("Skipping"); return; }
+    clavi::Translit tr;
+    REQUIRE(tr.load(translit_path()));
+
+    // m'iaso → мʼясо (м + ʼ + я + с + о)
+    // m→м, '→ʼ, ia→я, s→с, o→о
+    const std::string miaso = tr.transliterate("m'iaso");
+    // ʼ is U+02BC = UTF-8 0xCA 0xBC
+    REQUIRE(miaso == "\xD0\xBC\xCA\xBC\xD1\x8F\xD1\x81\xD0\xBE"); // мʼясо
+
+    // p'iat → пʼять would need final ть — let's test p'iat
+    // p→п, '→ʼ, ia→я, t→т
+    const std::string piat = tr.transliterate("p'iat");
+    REQUIRE(piat == "\xD0\xBF\xCA\xBC\xD1\x8F\xD1\x82"); // пʼят
+}
+
 TEST_CASE("KMU2010: passthrough for non-Latin", "[translit][kmu][integration]") {
     if (!have_translit()) { WARN("Skipping"); return; }
     clavi::Translit tr;

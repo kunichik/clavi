@@ -35,6 +35,9 @@
 "Yi"   = "Ї"
 "YI"   = "Ї"
 
+# Ukrainian apostrophe: separates consonant from iotated vowel (e.g. m'iaso → мʼясо)
+"'"  = "ʼ"
+
 # Single-char rules
 "a"  = "а"
 "A"  = "А"
