@@ -71,16 +71,38 @@ int main(int argc, char* argv[]) {
 
     // ── Parse minimal args ────────────────────────────────────────────────────
     bool verbose = false;
+    std::string cli_mode;          // overrides config general.mode
+    std::string cli_translit;      // overrides config general.translit_locale
+    std::string cli_packs;         // overrides pack directory
+
     for (int i = 1; i < argc; ++i) {
-        if (std::string(argv[i]) == "--verbose" || std::string(argv[i]) == "-v")
+        const std::string arg(argv[i]);
+        if (arg == "--verbose" || arg == "-v") {
             verbose = true;
-        if (std::string(argv[i]) == "--version") {
+        } else if (arg == "--version") {
             std::puts("clavid 0.1.0");
             return 0;
-        }
-        if (std::string(argv[i]) == "--help") {
-            std::puts("Usage: clavid [--verbose] [--version] [--help]");
+        } else if (arg == "--help" || arg == "-h") {
+            std::puts(
+                "Usage: clavid [options]\n"
+                "\n"
+                "Options:\n"
+                "  -v, --verbose              Print events to stdout\n"
+                "  --version                  Print version and exit\n"
+                "  --mode <mode>              Override config mode:\n"
+                "                               detection (default)\n"
+                "                               bridge (always-on translit)\n"
+                "  --translit-locale <locale> Override translit target locale (e.g. uk)\n"
+                "  --packs <dir>              Override language packs directory\n"
+                "  -h, --help                 Show this help"
+            );
             return 0;
+        } else if (arg == "--mode" && i + 1 < argc) {
+            cli_mode = argv[++i];
+        } else if (arg == "--translit-locale" && i + 1 < argc) {
+            cli_translit = argv[++i];
+        } else if (arg == "--packs" && i + 1 < argc) {
+            cli_packs = argv[++i];
         }
     }
 
@@ -93,7 +115,11 @@ int main(int argc, char* argv[]) {
     const fs::path cfg_path = cfg_dir / "config.toml";
     const fs::path excl_path = cfg_dir / "exclusions.toml";
 
-    const clavi::Config cfg = clavi::Config::load(cfg_path.string(), excl_path.string());
+    clavi::Config cfg = clavi::Config::load(cfg_path.string(), excl_path.string());
+
+    // Apply CLI overrides (take precedence over config file)
+    if (!cli_mode.empty())     cfg.general.mode             = cli_mode;
+    if (!cli_translit.empty()) cfg.general.translit_locale  = cli_translit;
 
     // ── Diagnostic logger (non-content, privacy-safe) ────────────────────────
     clavi::Logger logger;
@@ -120,7 +146,7 @@ int main(int argc, char* argv[]) {
 
     // ── Load language packs ───────────────────────────────────────────────────
     clavi::Detector detector;
-    const fs::path pdir = packs_dir();
+    const fs::path pdir = cli_packs.empty() ? packs_dir() : fs::path(cli_packs);
 
     for (const auto& locale : cfg.general.active_pair) {
         const fs::path pack_path = pdir / locale;
