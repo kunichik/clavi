@@ -55,3 +55,31 @@ endif()
 if(CLAVI_BUILD_FUZZ)
   add_subdirectory(fuzz)
 endif()
+
+# ── CPack packaging ──────────────────────────────────────────────────────────
+set(CPACK_PACKAGE_NAME "clavi")
+set(CPACK_PACKAGE_VENDOR "Clavi Project")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Automatic keyboard layout switcher")
+set(CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
+set(CPACK_PACKAGE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
+set(CPACK_PACKAGE_VERSION_PATCH ${PROJECT_VERSION_PATCH})
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+
+# DEB
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Clavi Project")
+set(CPACK_DEBIAN_PACKAGE_SECTION "utils")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "libx11-6, libxtst6")
+
+# RPM
+set(CPACK_RPM_PACKAGE_LICENSE "GPLv3")
+set(CPACK_RPM_PACKAGE_GROUP "Applications/System")
+
+# Install packs alongside daemon
+install(DIRECTORY packs/ DESTINATION share/clavi/packs
+        FILES_MATCHING PATTERN "*.bin" PATTERN "*.toml")
+install(DIRECTORY docs/ DESTINATION share/doc/clavi
+        FILES_MATCHING PATTERN "*.toml" PATTERN "*.md")
+install(FILES deploy/linux/clavi.service
+        DESTINATION lib/systemd/user OPTIONAL)
+
+include(CPack)
