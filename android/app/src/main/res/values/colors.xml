@@ -11,4 +11,8 @@
     <color name="lang_indicator">#FFFFAB40</color>
     <color name="key_shadow">#40000000</color>
     <color name="popup_bg">#FF455A64</color>
+    <!-- Clipboard history strip -->
+    <color name="strip_bg">#FF1C2B30</color>
+    <color name="strip_chip_bg">#FF37474F</color>
+    <color name="strip_chip_text">#FFE0F7FA</color>
 </resources>

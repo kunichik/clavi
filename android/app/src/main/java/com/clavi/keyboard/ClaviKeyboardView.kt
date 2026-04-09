@@ -7,6 +7,8 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
+import android.os.Handler
+import android.os.Looper
 import android.util.AttributeSet
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
@@ -74,6 +76,21 @@ class ClaviKeyboardView @JvmOverloads constructor(
     private val chipSpacing = 6f    // dp
 
     private var pressedKey: Key? = null
+
+    // Long press detection for clip chips
+    private val longPressHandler = Handler(Looper.getMainLooper())
+    private var longPressPending = false
+    private var longPressChipIndex = -1
+    private val longPressRunnable = Runnable {
+        val idx = longPressChipIndex
+        if (idx >= 0) {
+            performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            stripListener?.onClipLongPress(idx)
+            pressedChipIndex = -1
+            longPressPending = false
+            invalidate()
+        }
+    }
 
     // Colors
     private val keyBgColor: Int
@@ -285,6 +302,9 @@ class ClaviKeyboardView @JvmOverloads constructor(
                     val idx = chipRects.indexOfFirst { it.contains(x, y) }
                     if (idx >= 0) {
                         pressedChipIndex = idx
+                        longPressChipIndex = idx
+                        longPressPending = true
+                        longPressHandler.postDelayed(longPressRunnable, 500)
                         invalidate()
                         performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         return true
@@ -303,8 +323,12 @@ class ClaviKeyboardView @JvmOverloads constructor(
 
             MotionEvent.ACTION_UP -> {
                 if (pressedChipIndex >= 0) {
-                    stripListener?.onClipTap(pressedChipIndex)
+                    longPressHandler.removeCallbacks(longPressRunnable)
+                    if (longPressPending) {
+                        stripListener?.onClipTap(pressedChipIndex)
+                    }
                     pressedChipIndex = -1
+                    longPressPending = false
                     invalidate()
                     return true
                 }
@@ -319,8 +343,10 @@ class ClaviKeyboardView @JvmOverloads constructor(
             }
 
             MotionEvent.ACTION_CANCEL -> {
+                longPressHandler.removeCallbacks(longPressRunnable)
                 pressedKey = null
                 pressedChipIndex = -1
+                longPressPending = false
                 invalidate()
                 return true
             }
