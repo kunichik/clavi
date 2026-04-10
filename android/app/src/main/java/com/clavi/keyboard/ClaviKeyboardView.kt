@@ -209,7 +209,7 @@ class ClaviKeyboardView @JvmOverloads constructor(
         // Clipboard icon chip (non-tappable label)
         val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.argb(120, 255, 255, 255)
-            textSize = textSize
+            this.textSize = textSize
             textAlign = Paint.Align.LEFT
         }
         canvas.drawText("\uD83D\uDCCB", x, chipBottom - chipPaddingV * density * 0.5f, iconPaint)
@@ -322,7 +322,7 @@ class ClaviKeyboardView @JvmOverloads constructor(
         // Label on the left
         val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.argb(140, 255, 255, 255)
-            textSize = 11f * density
+            this.textSize = 11f * density
             textAlign = Paint.Align.LEFT
         }
         var x = 8f * density
@@ -360,7 +360,7 @@ class ClaviKeyboardView @JvmOverloads constructor(
         // Hint on right side
         val hintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.argb(100, 255, 255, 255)
-            textSize = 10f * density
+            this.textSize = 10f * density
             textAlign = Paint.Align.RIGHT
         }
         canvas.drawText("tap to insert", width - 8f * density, chipBottom - chipPaddingV * density * 0.5f, hintPaint)
