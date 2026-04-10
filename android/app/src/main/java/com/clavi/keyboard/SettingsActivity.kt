@@ -201,7 +201,7 @@ class SettingsActivity : AppCompatActivity() {
         }
         langCheckBoxes.forEach { layout.addView(it) }
 
-        val langSaveBtn = Button(this).apply {
+        val activeLangSaveBtn = Button(this).apply {
             text = "Save Active Languages"
             setBackgroundColor(0xFF1565C0.toInt())
             setTextColor(0xFFFFFFFF.toInt())
@@ -217,7 +217,7 @@ class SettingsActivity : AppCompatActivity() {
                     "Active: ${toSave.size} language(s)", Toast.LENGTH_SHORT).show()
             }
         }
-        layout.addView(langSaveBtn)
+        layout.addView(activeLangSaveBtn)
 
         // ── Section: Default Language ──
         layout.addView(sectionHeader("Default Language", dp))
