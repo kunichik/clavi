@@ -35,7 +35,8 @@ class ClaviKeyboardView @JvmOverloads constructor(
         fun onClipTap(index: Int)
         fun onClipLongPress(index: Int)
         fun onStripClear()
-        fun onDiacriticTap(variant: String)  // user picked a diacritic variant
+        fun onDiacriticTap(variant: String)
+        fun onFixTap(fix: TextFixEngine.Fix)
     }
 
     var listener: OnKeyListener? = null
@@ -45,15 +46,19 @@ class ClaviKeyboardView @JvmOverloads constructor(
 
     // Clipboard strip data — set from ClaviIME
     var clipItems: List<String> = emptyList()
-        set(value) { field = value; if (diacriticItems.isEmpty()) invalidate() }
+        set(value) { field = value; if (diacriticItems.isEmpty() && fixSuggestion == null) invalidate() }
 
     // Diacritics suggestion strip — overrides clipboard strip when non-empty
-    // Items are diacritic variants to show (e.g. ["ã","â","á","à","a"])
     var diacriticItems: List<String> = emptyList()
         set(value) { field = value; requestLayout(); invalidate() }
 
-    // Mode for the strip: CLIPBOARD or DIACRITICS
-    private val stripShowsDiacritics get() = diacriticItems.isNotEmpty()
+    // Text fix suggestion — highest priority, overrides both clipboard and diacritics
+    var fixSuggestion: TextFixEngine.Fix? = null
+        set(value) { field = value; requestLayout(); invalidate() }
+
+    // Strip priority: fix > diacritics > clipboard
+    private val stripShowsFix get() = fixSuggestion != null
+    private val stripShowsDiacritics get() = !stripShowsFix && diacriticItems.isNotEmpty()
 
     private var rows: List<Row> = emptyList()
     private val keyRects = mutableListOf<Pair<RectF, Key>>()
@@ -174,11 +179,11 @@ class ClaviKeyboardView @JvmOverloads constructor(
 
         val density = resources.displayMetrics.density
 
-        // ── Strip (diacritics takes priority over clipboard) ──
-        if (stripShowsDiacritics) {
-            drawDiacriticsStrip(canvas, density)
-        } else if (clipItems.isNotEmpty()) {
-            drawStrip(canvas, density)
+        // ── Strip (fix > diacritics > clipboard) ──
+        when {
+            stripShowsFix        -> drawFixStrip(canvas, density)
+            stripShowsDiacritics -> drawDiacriticsStrip(canvas, density)
+            clipItems.isNotEmpty() -> drawStrip(canvas, density)
         }
 
         // ── Keyboard rows ──
@@ -233,6 +238,69 @@ class ClaviKeyboardView @JvmOverloads constructor(
         clearButtonRect = clearRect
         canvas.drawRoundRect(clearRect, chipR, chipR, chipBgPaint)
         canvas.drawText("\u00D7", clearRect.centerX(), chipBottom - chipPaddingV * density * 0.8f, clearBtnPaint)
+    }
+
+    private fun drawFixStrip(canvas: Canvas, density: Float) {
+        chipRects.clear()
+        clearButtonRect = RectF()
+        val fix = fixSuggestion ?: return
+
+        val sh = stripHeight
+        // Green tint background — "suggestion available"
+        canvas.drawRect(0f, 0f, width.toFloat(), sh, Paint().apply { color = Color.argb(255, 22, 48, 35) })
+
+        val chipH = sh - chipPaddingV * density * 2
+        val chipTop = chipPaddingV * density
+        val chipBottom = chipTop + chipH
+        val chipR = chipRadius * density
+        chipTextPaint.textSize = 13f * density
+        chipTextPaint.textAlign = Paint.Align.LEFT
+
+        var x = 8f * density
+
+        // Label
+        val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(160, 255, 255, 255)
+            textSize = 11f * density
+            textAlign = Paint.Align.LEFT
+        }
+        canvas.drawText("✦ fix:", x, chipBottom - chipPaddingV * density * 0.5f, labelPaint)
+        x += labelPaint.measureText("✦ fix:") + 8f * density
+
+        // Show corrected text preview (truncated)
+        val preview = fix.fixed.trimEnd().takeLast(40).let { if (fix.fixed.length > 40) "…$it" else it }
+        val previewW = chipTextPaint.measureText(preview)
+        val chipW = previewW + chipPaddingH * density * 2
+
+        val rect = RectF(x, chipTop, x + chipW, chipBottom)
+        chipRects.add(rect)
+
+        val bgColor = if (pressedChipIndex == 0) keyBgPressedColor
+                      else Color.argb(220, 39, 174, 96)  // green
+        canvas.drawRoundRect(rect, chipR, chipR, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = bgColor })
+        chipTextPaint.color = Color.WHITE
+        canvas.drawText(preview, rect.left + chipPaddingH * density, chipBottom - chipPaddingV * density * 0.8f, chipTextPaint)
+        chipTextPaint.color = chipTextColor   // reset
+
+        x += chipW + chipSpacing * density
+
+        // Dismiss (✕) chip
+        val dismissW = 36f * density
+        val dismissRect = RectF(x, chipTop, x + dismissW, chipBottom)
+        chipRects.add(dismissRect)  // index 1 = dismiss
+        canvas.drawRoundRect(dismissRect, chipR, chipR, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(120, 120, 120, 120)
+        })
+        clearBtnPaint.textSize = 14f * density
+        canvas.drawText("✕", dismissRect.centerX(), chipBottom - chipPaddingV * density * 0.8f, clearBtnPaint)
+
+        // Reason hint
+        val hintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(100, 255, 255, 255)
+            textSize = 10f * density
+            textAlign = Paint.Align.RIGHT
+        }
+        canvas.drawText(fix.description, width - 8f * density, chipBottom - chipPaddingV * density * 0.5f, hintPaint)
     }
 
     private fun drawDiacriticsStrip(canvas: Canvas, density: Float) {
@@ -404,11 +472,19 @@ class ClaviKeyboardView @JvmOverloads constructor(
                 if (pressedChipIndex >= 0) {
                     longPressHandler.removeCallbacks(longPressRunnable)
                     if (longPressPending) {
-                        if (stripShowsDiacritics) {
-                            val variant = diacriticItems.getOrNull(pressedChipIndex)
-                            if (variant != null) stripListener?.onDiacriticTap(variant)
-                        } else {
-                            stripListener?.onClipTap(pressedChipIndex)
+                        when {
+                            stripShowsFix -> {
+                                if (pressedChipIndex == 0) {
+                                    fixSuggestion?.let { stripListener?.onFixTap(it) }
+                                } else {
+                                    fixSuggestion = null  // dismiss
+                                }
+                            }
+                            stripShowsDiacritics -> {
+                                val variant = diacriticItems.getOrNull(pressedChipIndex)
+                                if (variant != null) stripListener?.onDiacriticTap(variant)
+                            }
+                            else -> stripListener?.onClipTap(pressedChipIndex)
                         }
                     }
                     pressedChipIndex = -1

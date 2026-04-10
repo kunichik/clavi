@@ -100,6 +100,14 @@ class ClaviIME : InputMethodService(),
         clearDiacritics()
     }
 
+    override fun onFixTap(fix: TextFixEngine.Fix) {
+        val ic = currentInputConnection ?: return
+        // Replace text before cursor: delete the original and insert the fixed version
+        ic.deleteSurroundingText(fix.original.length, 0)
+        ic.commitText(fix.fixed, 1)
+        keyboardView.fixSuggestion = null
+    }
+
     // ── ClaviKeyboardView.OnKeyListener ──
 
     override fun onKey(key: Key) {
@@ -124,10 +132,18 @@ class ClaviIME : InputMethodService(),
             translitBuffer.append(text)
             flushTranslitBuffer(force = false)
             clearDiacritics()
+            keyboardView.fixSuggestion = null
         } else {
             ic.commitText(text, 1)
             // Show diacritics strip if this letter has variants in the active locale
             showDiacriticsIfNeeded(text)
+            // After space: run fix analysis on the text before cursor
+            if (text == " ") {
+                val textBefore = ic.getTextBeforeCursor(200, 0)?.toString() ?: ""
+                keyboardView.fixSuggestion = TextFixEngine.analyze(textBefore)
+            } else {
+                keyboardView.fixSuggestion = null
+            }
         }
 
         if (shifted && !capsLock) {
@@ -176,6 +192,7 @@ class ClaviIME : InputMethodService(),
     private fun handleBackspace() {
         val ic = currentInputConnection ?: return
         clearDiacritics()
+        keyboardView.fixSuggestion = null
         if (translitBuffer.isNotEmpty()) {
             translitBuffer.deleteCharAt(translitBuffer.length - 1)
         } else {
