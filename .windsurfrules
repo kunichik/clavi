@@ -1,0 +1,88 @@
+# Clavi — Windsurf Rules
+
+## Project
+Cross-platform keyboard layout switcher + language bridge (`clavis` = Latin for key).
+Platforms: Android IME (Kotlin), iOS Keyboard Extension (Swift), Desktop daemon (C++20).
+
+## Non-Negotiable Rules
+1. **Russian language is permanently banned.** No `ru` locale, no Russian content anywhere.
+2. **No network calls** from keyboard/engine code. Fully local, no cloud.
+3. **No telemetry, no accounts.** Privacy first.
+4. **GPLv3** core, **CC BY-SA 4.0** language packs.
+
+## Codebase Map
+
+```
+android/app/src/main/java/com/clavi/keyboard/
+  ClaviIME.kt            ← InputMethodService, key handling, strip logic
+  ClaviKeyboardView.kt   ← Canvas keyboard + strip rendering
+  KeyboardLayout.kt      ← UK/EN/symbols layout definitions
+  TranslitEngine.kt      ← KMU 2010 Ukrainian transliteration
+  DiacriticsEngine.kt    ← Smart diacritics (pt/de/fr/no/es...)
+  ClipboardHistory.kt    ← Clipboard strip (max 20 items)
+  TextFixEngine.kt       ← Local typo correction engine
+  SettingsActivity.kt    ← User preferences
+
+ios/ClaviKeyboard/ClaviKeyboardExtension/
+  KeyboardViewController.swift   ← UIInputViewController
+  ClaviKeyboardView.swift        ← UIView with UIButton keys
+  TranslitEngine.swift           ← Mirror of Kotlin version
+  DiacriticsEngine.swift         ← Mirror of Kotlin version
+  ClipboardHistory.swift         ← UIPasteboard-based
+```
+
+## Build
+```bash
+# Android
+cd android && ./gradlew assembleDebug
+
+# iOS — open in Xcode 15+
+open ios/ClaviKeyboard/ClaviKeyboard.xcodeproj
+```
+
+## Android Strip System
+Three strips, only one shown at a time (strict priority):
+1. **Fix strip** (green `#162023`) — TextFixEngine detected a typo after space
+2. **Diacritics strip** (teal) — last letter has diacritic variants
+3. **Clipboard strip** (dark) — paste history
+
+Tap fix chip → apply fix, clear suggestion.
+Tap ✕ → dismiss without applying.
+
+## TextFixEngine Contract
+```kotlin
+// analyze() returns Fix or null — NEVER throws
+fun analyze(textBefore: String): Fix?
+
+data class Fix(
+    val original: String,   // full textBefore BEFORE fix
+    val fixed: String,      // full textBefore AFTER fix
+    val description: String // human-readable reason
+)
+```
+Rule: **fix obvious typos only**. Never change word choice, sentence structure, or style.
+When unsure → return null. This is not Grammarly.
+
+## Translit (KMU 2010)
+Buffer accumulates Latin chars. Flush when match found:
+- `shch` → `щ` (check 4-char trigraph first)
+- `zh kh ts ch sh iu ia ie yi` → Ukrainian digraphs
+- Single char fallback
+- `isDigraphStart('s')` = true → don't commit `s` immediately, might be `sh/shch`
+
+## iOS ↔ Android Mirror Rule
+Any change to translit rules, diacritics tables, or keyboard layout MUST be applied to both platforms. The Kotlin and Swift implementations must stay identical in logic.
+
+## Code Style
+- Kotlin: 4-space, no semicolons, `ktlint`
+- Swift: 4-space, `SwiftLint`
+- C++: Google style, `clang-format`, 100-col limit
+
+## Known Kotlin Gotcha
+```kotlin
+val textSize = 13f * density          // outer val
+val paint = Paint().apply {
+    this.textSize = textSize           // ✅ explicit this — avoids "val cannot be reassigned"
+    // textSize = textSize             // ❌ compiler error: tries to reassign outer val
+}
+```

@@ -41,9 +41,11 @@ class ClaviIME : InputMethodService(),
         clipboardHistory = ClipboardHistory(this)
         clipboardHistory.listener = this
 
-        // Load diacritics locale from user prefs
+        // Load preferences
         val prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE)
         diacriticsLocale = prefs.getString(SettingsActivity.PREF_DIACRITICS_LOCALE, null)
+        val savedLang = prefs.getString(SettingsActivity.PREF_DEFAULT_LANGUAGE, Language.UK.name)
+        currentLanguage = if (savedLang == Language.EN.name) Language.EN else Language.UK
 
         keyboardView = ClaviKeyboardView(this)
         keyboardView.listener = this

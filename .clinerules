@@ -1,0 +1,143 @@
+# Clavi — Cline Rules
+
+## What is this project
+Cross-platform keyboard layout switcher and language bridge.
+- **Desktop (C++20):** auto-detects wrong layout, switches silently
+- **Android (Kotlin):** native IME — IS the keyboard, not a hook
+- **iOS (Swift):** Custom Keyboard Extension
+
+Primary non-English target: **Ukrainian**. Secondary: PT, DE, FR, NO, ES and minority languages.
+
+## Hardcoded Restrictions
+
+```
+BLOCKED_LOCALES = ["ru"]  // Russian — permanent ban, not configurable
+```
+
+No Russian keyboard map, no Russian dictionary, no `"ru"` locale anywhere.
+No network access from keyboard/engine code.
+No telemetry, no cloud, no user accounts.
+
+## Understanding the Android Keyboard
+
+The keyboard is an `InputMethodService`. It draws everything on a `Canvas` — no XML layouts
+for the actual keys (only for the outer container).
+
+```
+ClaviIME
+ │
+ ├─ keyboardView: ClaviKeyboardView (Canvas)
+ │   ├─ Strip (top ~48dp): fix strip OR diacritics strip OR clipboard strip
+ │   └─ Key rows (remaining height): drawn as rounded rectangles
+ │
+ ├─ translitBuffer: StringBuilder  ← accumulates Latin for digraph resolution
+ ├─ diacriticsLocale: String?      ← set from SharedPreferences
+ └─ Engines (all stateless objects/singletons):
+     TranslitEngine, DiacriticsEngine, TextFixEngine, ClipboardHistory
+```
+
+## Transliteration System (KMU 2010)
+
+When `translitMode = true` and `currentLanguage = EN`:
+1. Each typed Latin char appends to `translitBuffer`
+2. `tryTransliterate(buffer)` checks: shch(4) → zh/kh/ts/ch/sh/iu/ia/ie/yi(2) → single chars
+3. If `isDigraphStart(c)` is true → don't flush yet (wait for next char)
+4. On backspace → pop last char from buffer (not from the text field)
+5. On Enter → force-flush everything
+
+## Text Fix System
+
+`TextFixEngine.analyze(textBefore: String): Fix?`
+
+Trigger: after space key is typed (in `handleCharacter`)
+```kotlin
+if (text == " ") {
+    val textBefore = ic.getTextBeforeCursor(200, 0)?.toString() ?: ""
+    keyboardView.fixSuggestion = TextFixEngine.analyze(textBefore)
+}
+```
+
+`Fix.original` = full textBefore string BEFORE fix
+`Fix.fixed` = full textBefore string AFTER fix
+
+Apply fix: `ic.deleteSurroundingText(fix.original.length, 0)` then `ic.commitText(fix.fixed, 1)`
+
+## Diacritics System
+
+`DiacriticsEngine.suggest(char: Char, locale: String): List<String>`
+
+Returns frequency-ordered variants including base letter last: e.g. `["ã","â","á","à","a"]`
+Empty list = no variants for this char in this locale.
+
+Strip shows when `diacriticItems.size > 1`. Tapping a variant: delete last char, insert variant.
+
+## File Locations
+
+```
+android/app/src/main/java/com/clavi/keyboard/
+├── ClaviIME.kt
+├── ClaviKeyboardView.kt
+├── KeyboardLayout.kt
+├── TranslitEngine.kt
+├── DiacriticsEngine.kt
+├── ClipboardHistory.kt
+├── TextFixEngine.kt
+└── SettingsActivity.kt
+
+ios/ClaviKeyboard/ClaviKeyboardExtension/
+├── KeyboardViewController.swift
+├── ClaviKeyboardView.swift
+├── KeyboardLayout.swift
+├── TranslitEngine.swift
+├── DiacriticsEngine.swift
+└── ClipboardHistory.swift
+
+.github/workflows/android.yml  ← CI: builds debug + release APK
+```
+
+## Build
+
+```bash
+cd android
+./gradlew assembleDebug   # → app/build/outputs/apk/debug/app-debug.apk
+```
+Requires JDK 17. No NDK needed (pure Kotlin).
+
+## Known Issues / Watch Out For
+
+1. **`val textSize` shadowing in `Paint.apply {}`**
+   ```kotlin
+   val textSize = 13f * density
+   val p = Paint().apply {
+       this.textSize = textSize  // ✅ must use this.textSize
+       // textSize = textSize    // ❌ "val cannot be reassigned"
+   }
+   ```
+
+2. **`InputConnection` nullability** — always `val ic = currentInputConnection ?: return`
+
+3. **Clipboard access on Android 10+** — IME has elevated access via `InputMethodService` context.
+   Don't use `Application` context for clipboard operations.
+
+4. **iOS clipboard** — requires `RequestsOpenAccess = true` in Info.plist. Without it,
+   `UIPasteboard.general.string` returns nil.
+
+5. **Translit + diacritics conflict** — diacritics are disabled in translit mode (already handled).
+
+## What's Done / What's Planned
+
+| Platform | Version | Status |
+|----------|---------|--------|
+| Android | v0.1-v0.4 | ✅ keyboard, translit, clipboard, diacritics, text fix |
+| Android | v0.5 | 🔄 more language packs, settings improvements |
+| iOS | v0.5 | ✅ keyboard, translit, clipboard, diacritics |
+| iOS | v0.6 | 🔄 settings, text fix parity |
+| Desktop | v1.5 | planned |
+
+## Contribution Notes
+
+- Mirror any logic change to both Android (Kotlin) and iOS (Swift)
+- Don't add language packs without proper frequency data
+- TextFixEngine: only add fixes with >99% confidence — when in doubt, don't
+- All config format: TOML (not YAML)
+- No force-pushes to `main`

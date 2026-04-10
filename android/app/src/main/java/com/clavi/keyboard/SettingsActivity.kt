@@ -18,6 +18,7 @@ class SettingsActivity : AppCompatActivity() {
     companion object {
         const val PREFS_NAME = "clavi_prefs"
         const val PREF_DIACRITICS_LOCALE = "diacritics_locale"
+        const val PREF_DEFAULT_LANGUAGE = "default_language"
 
         // Displayed name → locale code (null = off)
         val DIACRITICS_OPTIONS = listOf(
@@ -117,7 +118,10 @@ class SettingsActivity : AppCompatActivity() {
             text = "Save"
             setBackgroundColor(0xFF1565C0.toInt())
             setTextColor(0xFFFFFFFF.toInt())
-            setPadding(0, (4 * dp).toInt(), 0, (4 * dp).toInt())
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).also { it.topMargin = (8 * dp).toInt() }
             setOnClickListener {
                 val locale = DIACRITICS_OPTIONS[spinner.selectedItemPosition].second
                 prefs.edit().apply {
@@ -129,14 +133,31 @@ class SettingsActivity : AppCompatActivity() {
                     Toast.LENGTH_SHORT).show()
             }
         }
-        layout.addView(LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        ).let { params ->
-            params.topMargin = (8 * dp).toInt()
-            saveBtn.layoutParams = params
-            saveBtn
+        layout.addView(saveBtn)
+
+        // ── Section: Default Language ──
+        layout.addView(sectionHeader("Default Language", dp))
+
+        layout.addView(TextView(this).apply {
+            text = "The keyboard language shown when the keyboard first opens."
+            textSize = 14f
+            setTextColor(0xFFB0BEC5.toInt())
+            setPadding(0, 0, 0, (12 * dp).toInt())
         })
+
+        val savedDefaultLang = prefs.getString(PREF_DEFAULT_LANGUAGE, Language.UK.name)
+        val defaultLangToggle = ToggleButton(this).apply {
+            textOn = "Default: English"
+            textOff = "Default: Ukrainian"
+            isChecked = savedDefaultLang == Language.EN.name
+            setOnCheckedChangeListener { _, isChecked ->
+                val lang = if (isChecked) Language.EN.name else Language.UK.name
+                prefs.edit().putString(PREF_DEFAULT_LANGUAGE, lang).apply()
+                val label = if (isChecked) "Default: English" else "Default: Ukrainian"
+                Toast.makeText(this@SettingsActivity, label, Toast.LENGTH_SHORT).show()
+            }
+        }
+        layout.addView(defaultLangToggle)
 
         setContentView(scroll)
     }
