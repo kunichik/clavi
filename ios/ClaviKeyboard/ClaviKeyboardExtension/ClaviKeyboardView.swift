@@ -5,12 +5,19 @@ protocol ClaviKeyboardViewDelegate: AnyObject {
     func didTapClip(at index: Int)
     func didLongPressClip(at index: Int)
     func didTapClearClips()
+    func didTapDiacritic(_ variant: String)
+    func didTapFix(_ fix: TextFixEngine.Fix)
+    func didDismissFix()
     func didTapNextKeyboard()
 }
 
 /**
- * Custom keyboard view drawn with UIKit.
- * Renders: [clipboard strip] + [keyboard rows]
+ * Custom keyboard view (UIKit).
+ *
+ * Strip priority (only one shown at a time):
+ *   1. Fix strip (green)      — TextFixEngine suggestion
+ *   2. Diacritics strip (teal)— last letter has variants
+ *   3. Clipboard strip (dark) — paste history
  */
 class ClaviKeyboardView: UIView {
 
@@ -19,34 +26,50 @@ class ClaviKeyboardView: UIView {
     var rows: [[KeyDef]] = [] { didSet { rebuildKeys() } }
     var translitActive = false { didSet { updateTranslitButton() } }
     var currentLanguage: Language = .uk { didSet { updateLangButton() } }
-    var clipItems: [String] = [] { didSet { updateStrip() } }
+
+    // Strip data — setting any of these triggers priority re-evaluation
+    var clipItems: [String] = []      { didSet { updateStripVisibility() } }
+    var diacriticItems: [String] = [] { didSet { updateStripVisibility() } }
+    var fixSuggestion: TextFixEngine.Fix? { didSet { updateStripVisibility() } }
 
     // MARK: - Subviews
 
-    private let stripScrollView = UIScrollView()
-    private let stripStack = UIStackView()
-    private let stripClearBtn = UIButton(type: .system)
-    private let keysContainer = UIView()
+    // Clipboard strip
+    private let clipScrollView  = UIScrollView()
+    private let clipStack       = UIStackView()
+    private let clipClearBtn    = UIButton(type: .system)
+
+    // Diacritics strip
+    private let diacrStrip      = UIView()
+    private let diacrStack      = UIStackView()
+
+    // Fix strip
+    private let fixStrip        = UIView()
+    private let fixStack        = UIStackView()
+
+    private let keysContainer   = UIView()
     private var keyButtons: [UIButton: KeyDef] = [:]
     private var translitButton: UIButton?
     private var langButton: UIButton?
 
     // MARK: - Constants
 
-    private let stripHeight: CGFloat = 40
-    private let keySpacing: CGFloat = 6
-    private let rowSpacing: CGFloat = 6
-    private let keyCorner: CGFloat = 8
+    private let stripHeight: CGFloat = 44
+    private let keySpacing: CGFloat  = 6
+    private let rowSpacing: CGFloat  = 6
+    private let keyCorner: CGFloat   = 8
 
     // Colors
-    private let bgColor       = UIColor(red: 0.15, green: 0.19, blue: 0.20, alpha: 1)
-    private let keyColor      = UIColor(red: 0.22, green: 0.28, blue: 0.31, alpha: 1)
-    private let specialColor  = UIColor(red: 0.27, green: 0.35, blue: 0.40, alpha: 1)
-    private let textColor     = UIColor.white
+    private let bgColor        = UIColor(red: 0.15, green: 0.19, blue: 0.20, alpha: 1)
+    private let keyColor       = UIColor(red: 0.22, green: 0.28, blue: 0.31, alpha: 1)
+    private let specialColor   = UIColor(red: 0.27, green: 0.35, blue: 0.40, alpha: 1)
+    private let textColor      = UIColor.white
     private let translitOnColor = UIColor(red: 0.31, green: 0.76, blue: 0.97, alpha: 1)
-    private let langColor     = UIColor(red: 1.0,  green: 0.67, blue: 0.25, alpha: 1)
-    private let stripBgColor  = UIColor(red: 0.11, green: 0.17, blue: 0.19, alpha: 1)
-    private let chipColor     = UIColor(red: 0.22, green: 0.28, blue: 0.31, alpha: 1)
+    private let langColor      = UIColor(red: 1.0,  green: 0.67, blue: 0.25, alpha: 1)
+    private let clipBgColor    = UIColor(red: 0.11, green: 0.17, blue: 0.19, alpha: 1)
+    private let chipColor      = UIColor(red: 0.22, green: 0.28, blue: 0.31, alpha: 1)
+    private let diacrBgColor   = UIColor(red: 0.04, green: 0.26, blue: 0.26, alpha: 1)
+    private let fixBgColor     = UIColor(red: 0.09, green: 0.19, blue: 0.14, alpha: 1)
 
     // MARK: - Init
 
@@ -63,90 +86,235 @@ class ClaviKeyboardView: UIView {
     private func setup() {
         backgroundColor = bgColor
 
-        // Strip
-        stripScrollView.backgroundColor = stripBgColor
-        stripScrollView.showsHorizontalScrollIndicator = false
-        stripScrollView.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(stripScrollView)
+        setupClipStrip()
+        setupDiacrStrip()
+        setupFixStrip()
 
-        stripStack.axis = .horizontal
-        stripStack.spacing = 6
-        stripStack.alignment = .center
-        stripStack.translatesAutoresizingMaskIntoConstraints = false
-        stripScrollView.addSubview(stripStack)
-
-        stripClearBtn.setTitle("×", for: .normal)
-        stripClearBtn.setTitleColor(.red, for: .normal)
-        stripClearBtn.titleLabel?.font = .systemFont(ofSize: 18, weight: .bold)
-        stripClearBtn.translatesAutoresizingMaskIntoConstraints = false
-        stripClearBtn.addTarget(self, action: #selector(clearStrip), for: .touchUpInside)
-        addSubview(stripClearBtn)
-
-        // Keys container
         keysContainer.translatesAutoresizingMaskIntoConstraints = false
         addSubview(keysContainer)
 
         NSLayoutConstraint.activate([
-            stripScrollView.leadingAnchor.constraint(equalTo: leadingAnchor),
-            stripScrollView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -44),
-            stripScrollView.topAnchor.constraint(equalTo: topAnchor),
-            stripScrollView.heightAnchor.constraint(equalToConstant: stripHeight),
+            // All three strips occupy the same top slot — visibility switches between them
+            clipScrollView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            clipScrollView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -44),
+            clipScrollView.topAnchor.constraint(equalTo: topAnchor),
+            clipScrollView.heightAnchor.constraint(equalToConstant: stripHeight),
 
-            stripClearBtn.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
-            stripClearBtn.centerYAnchor.constraint(equalTo: stripScrollView.centerYAnchor),
-            stripClearBtn.widthAnchor.constraint(equalToConstant: 40),
+            clipClearBtn.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
+            clipClearBtn.centerYAnchor.constraint(equalTo: clipScrollView.centerYAnchor),
+            clipClearBtn.widthAnchor.constraint(equalToConstant: 40),
 
-            stripStack.leadingAnchor.constraint(equalTo: stripScrollView.leadingAnchor, constant: 8),
-            stripStack.trailingAnchor.constraint(equalTo: stripScrollView.trailingAnchor, constant: -8),
-            stripStack.topAnchor.constraint(equalTo: stripScrollView.topAnchor, constant: 4),
-            stripStack.bottomAnchor.constraint(equalTo: stripScrollView.bottomAnchor, constant: -4),
-            stripStack.heightAnchor.constraint(equalToConstant: stripHeight - 8),
+            clipStack.leadingAnchor.constraint(equalTo: clipScrollView.leadingAnchor, constant: 8),
+            clipStack.trailingAnchor.constraint(equalTo: clipScrollView.trailingAnchor, constant: -8),
+            clipStack.topAnchor.constraint(equalTo: clipScrollView.topAnchor, constant: 4),
+            clipStack.bottomAnchor.constraint(equalTo: clipScrollView.bottomAnchor, constant: -4),
+
+            diacrStrip.leadingAnchor.constraint(equalTo: leadingAnchor),
+            diacrStrip.trailingAnchor.constraint(equalTo: trailingAnchor),
+            diacrStrip.topAnchor.constraint(equalTo: topAnchor),
+            diacrStrip.heightAnchor.constraint(equalToConstant: stripHeight),
+
+            diacrStack.leadingAnchor.constraint(equalTo: diacrStrip.leadingAnchor, constant: 8),
+            diacrStack.trailingAnchor.constraint(equalTo: diacrStrip.trailingAnchor, constant: -8),
+            diacrStack.centerYAnchor.constraint(equalTo: diacrStrip.centerYAnchor),
+
+            fixStrip.leadingAnchor.constraint(equalTo: leadingAnchor),
+            fixStrip.trailingAnchor.constraint(equalTo: trailingAnchor),
+            fixStrip.topAnchor.constraint(equalTo: topAnchor),
+            fixStrip.heightAnchor.constraint(equalToConstant: stripHeight),
+
+            fixStack.leadingAnchor.constraint(equalTo: fixStrip.leadingAnchor, constant: 8),
+            fixStack.trailingAnchor.constraint(equalTo: fixStrip.trailingAnchor, constant: -8),
+            fixStack.centerYAnchor.constraint(equalTo: fixStrip.centerYAnchor),
 
             keysContainer.leadingAnchor.constraint(equalTo: leadingAnchor),
             keysContainer.trailingAnchor.constraint(equalTo: trailingAnchor),
-            keysContainer.topAnchor.constraint(equalTo: stripScrollView.bottomAnchor),
+            keysContainer.topAnchor.constraint(equalTo: topAnchor, constant: stripHeight),
             keysContainer.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
 
-        updateStrip()
+        updateStripVisibility()
     }
 
-    // MARK: - Strip
+    // MARK: - Clipboard strip setup
 
-    private func updateStrip() {
-        stripStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        stripScrollView.isHidden = clipItems.isEmpty
-        stripClearBtn.isHidden = clipItems.isEmpty
+    private func setupClipStrip() {
+        clipScrollView.backgroundColor = clipBgColor
+        clipScrollView.showsHorizontalScrollIndicator = false
+        clipScrollView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(clipScrollView)
 
-        clipItems.enumerated().forEach { (i, label) in
-            let btn = UIButton(type: .system)
-            btn.setTitle(label, for: .normal)
-            btn.setTitleColor(UIColor(red: 0.88, green: 0.97, blue: 0.98, alpha: 1), for: .normal)
-            btn.titleLabel?.font = .systemFont(ofSize: 13)
-            btn.backgroundColor = chipColor
-            btn.layer.cornerRadius = 6
-            btn.contentEdgeInsets = UIEdgeInsets(top: 4, left: 10, bottom: 4, right: 10)
+        clipStack.axis = .horizontal
+        clipStack.spacing = 6
+        clipStack.alignment = .center
+        clipStack.translatesAutoresizingMaskIntoConstraints = false
+        clipScrollView.addSubview(clipStack)
+
+        clipClearBtn.setTitle("×", for: .normal)
+        clipClearBtn.setTitleColor(.red, for: .normal)
+        clipClearBtn.titleLabel?.font = .systemFont(ofSize: 18, weight: .bold)
+        clipClearBtn.translatesAutoresizingMaskIntoConstraints = false
+        clipClearBtn.addTarget(self, action: #selector(clearClips), for: .touchUpInside)
+        addSubview(clipClearBtn)
+    }
+
+    // MARK: - Diacritics strip setup
+
+    private func setupDiacrStrip() {
+        diacrStrip.backgroundColor = diacrBgColor
+        diacrStrip.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(diacrStrip)
+
+        diacrStack.axis = .horizontal
+        diacrStack.spacing = 8
+        diacrStack.alignment = .center
+        diacrStack.translatesAutoresizingMaskIntoConstraints = false
+        diacrStrip.addSubview(diacrStack)
+    }
+
+    // MARK: - Fix strip setup
+
+    private func setupFixStrip() {
+        fixStrip.backgroundColor = fixBgColor
+        fixStrip.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(fixStrip)
+
+        fixStack.axis = .horizontal
+        fixStack.spacing = 8
+        fixStack.alignment = .center
+        fixStack.translatesAutoresizingMaskIntoConstraints = false
+        fixStrip.addSubview(fixStack)
+    }
+
+    // MARK: - Strip visibility (priority: fix > diacritics > clipboard)
+
+    private func updateStripVisibility() {
+        let showFix    = fixSuggestion != nil
+        let showDiacr  = !showFix && !diacriticItems.isEmpty
+        let showClip   = !showFix && !showDiacr && !clipItems.isEmpty
+
+        fixStrip.isHidden    = !showFix
+        diacrStrip.isHidden  = !showDiacr
+        clipScrollView.isHidden = !showClip
+        clipClearBtn.isHidden   = !showClip
+
+        if showFix    { rebuildFixStrip() }
+        if showDiacr  { rebuildDiacrStrip() }
+        if showClip   { rebuildClipStrip() }
+    }
+
+    // MARK: - Rebuild strip content
+
+    private func rebuildClipStrip() {
+        clipStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        for (i, label) in clipItems.enumerated() {
+            let btn = chipButton(title: label, color: UIColor(red: 0.88, green: 0.97, blue: 0.98, alpha: 1), bg: chipColor)
             btn.tag = i
-            btn.addTarget(self, action: #selector(chipTapped(_:)), for: .touchUpInside)
-
-            let lp = UILongPressGestureRecognizer(target: self, action: #selector(chipLongPressed(_:)))
+            btn.addTarget(self, action: #selector(clipChipTapped(_:)), for: .touchUpInside)
+            let lp = UILongPressGestureRecognizer(target: self, action: #selector(clipChipLongPressed(_:)))
             btn.addGestureRecognizer(lp)
-
-            stripStack.addArrangedSubview(btn)
+            clipStack.addArrangedSubview(btn)
         }
     }
 
-    @objc private func chipTapped(_ sender: UIButton) {
+    private func rebuildDiacrStrip() {
+        diacrStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+
+        let label = UILabel()
+        label.text = "díacr:"
+        label.font = .systemFont(ofSize: 11)
+        label.textColor = UIColor(white: 1, alpha: 0.5)
+        diacrStack.addArrangedSubview(label)
+
+        for (i, variant) in diacriticItems.enumerated() {
+            let isFirst = (i == 0)
+            let isLast  = (i == diacriticItems.count - 1)
+            let bg: UIColor = isFirst
+                ? UIColor(red: 0.0, green: 0.6, blue: 0.6, alpha: 0.6)
+                : (isLast ? chipColor.withAlphaComponent(0.5) : chipColor)
+            let btn = chipButton(title: variant, color: .white, bg: bg)
+            btn.titleLabel?.font = .systemFont(ofSize: 18, weight: isFirst ? .semibold : .regular)
+            btn.tag = i
+            btn.addTarget(self, action: #selector(diacrChipTapped(_:)), for: .touchUpInside)
+            diacrStack.addArrangedSubview(btn)
+        }
+    }
+
+    private func rebuildFixStrip() {
+        fixStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        guard let fix = fixSuggestion else { return }
+
+        let label = UILabel()
+        label.text = "✦ fix:"
+        label.font = .systemFont(ofSize: 11)
+        label.textColor = UIColor(white: 1, alpha: 0.6)
+        fixStack.addArrangedSubview(label)
+
+        // Preview chip — shows the fixed text (truncated)
+        let preview = String(fix.fixed.trimmingCharacters(in: .whitespaces).suffix(40))
+        let previewBtn = chipButton(title: preview, color: UIColor(red: 0.6, green: 1.0, blue: 0.7, alpha: 1),
+                                    bg: UIColor(red: 0.0, green: 0.4, blue: 0.2, alpha: 0.7))
+        previewBtn.addTarget(self, action: #selector(fixApplyTapped), for: .touchUpInside)
+        fixStack.addArrangedSubview(previewBtn)
+
+        // Reason hint
+        let hint = UILabel()
+        hint.text = fix.description
+        hint.font = .systemFont(ofSize: 10)
+        hint.textColor = UIColor(white: 1, alpha: 0.4)
+        fixStack.addArrangedSubview(hint)
+
+        // Spacer
+        let spacer = UIView()
+        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        fixStack.addArrangedSubview(spacer)
+
+        // Dismiss button
+        let dismissBtn = chipButton(title: "✕", color: UIColor(white: 1, alpha: 0.6), bg: chipColor.withAlphaComponent(0.5))
+        dismissBtn.addTarget(self, action: #selector(fixDismissTapped), for: .touchUpInside)
+        fixStack.addArrangedSubview(dismissBtn)
+    }
+
+    // MARK: - Helper
+
+    private func chipButton(title: String, color: UIColor, bg: UIColor) -> UIButton {
+        let btn = UIButton(type: .custom)
+        btn.setTitle(title, for: .normal)
+        btn.setTitleColor(color, for: .normal)
+        btn.titleLabel?.font = .systemFont(ofSize: 13)
+        btn.backgroundColor = bg
+        btn.layer.cornerRadius = 6
+        btn.contentEdgeInsets = UIEdgeInsets(top: 4, left: 10, bottom: 4, right: 10)
+        return btn
+    }
+
+    // MARK: - Strip actions
+
+    @objc private func clipChipTapped(_ sender: UIButton) {
         delegate?.didTapClip(at: sender.tag)
     }
 
-    @objc private func chipLongPressed(_ gr: UILongPressGestureRecognizer) {
+    @objc private func clipChipLongPressed(_ gr: UILongPressGestureRecognizer) {
         guard gr.state == .began, let btn = gr.view as? UIButton else { return }
         delegate?.didLongPressClip(at: btn.tag)
     }
 
-    @objc private func clearStrip() {
+    @objc private func clearClips() {
         delegate?.didTapClearClips()
+    }
+
+    @objc private func diacrChipTapped(_ sender: UIButton) {
+        guard sender.tag < diacriticItems.count else { return }
+        delegate?.didTapDiacritic(diacriticItems[sender.tag])
+    }
+
+    @objc private func fixApplyTapped() {
+        guard let fix = fixSuggestion else { return }
+        delegate?.didTapFix(fix)
+    }
+
+    @objc private func fixDismissTapped() {
+        delegate?.didDismissFix()
     }
 
     // MARK: - Keys
@@ -157,13 +325,8 @@ class ClaviKeyboardView: UIView {
         translitButton = nil
         langButton = nil
 
-        let rowCount = CGFloat(rows.count)
-        let totalRowSpacing = rowSpacing * (rowCount + 1)
-
         for (rowIdx, row) in rows.enumerated() {
-            let totalWeight = row.reduce(0) { $0 + $1.widthWeight }
-
-            for (_, key) in row.enumerated() {
+            for key in row {
                 let btn = UIButton(type: .system)
                 btn.setTitle(key.label, for: .normal)
                 btn.setTitleColor(textColor, for: .normal)
@@ -175,17 +338,9 @@ class ClaviKeyboardView: UIView {
                 keyButtons[btn] = key
                 btn.addTarget(self, action: #selector(keyTapped(_:)), for: .touchUpInside)
 
-                // Store references to special buttons
                 if case .translit = key.action { translitButton = btn }
                 if case .langSwitch = key.action { langButton = btn }
-
-                // Layout using auto-layout with multiplier trick
-                let keyHeightFraction = 1.0 / rowCount
-                let keyTopFraction = CGFloat(rowIdx) / rowCount
-                let keyWidthFraction = key.widthWeight / totalWeight
-
-                // We'll use manual frame layout in layoutSubviews for flexibility
-                btn.tag = rowIdx * 100 + row.firstIndex(where: { $0.label == key.label && $0.isSpecial == key.isSpecial }) ?? 0
+                btn.tag = rowIdx * 100 + (row.firstIndex(where: { $0.label == key.label }) ?? 0)
             }
         }
 
@@ -224,10 +379,9 @@ class ClaviKeyboardView: UIView {
     }
 
     private func keyFont(for key: KeyDef) -> UIFont {
-        if key.isSpecial && key.label.count > 1 {
-            return .systemFont(ofSize: 13, weight: .medium)
-        }
-        return .systemFont(ofSize: 20, weight: .regular)
+        key.isSpecial && key.label.count > 1
+            ? .systemFont(ofSize: 13, weight: .medium)
+            : .systemFont(ofSize: 20, weight: .regular)
     }
 
     @objc private func keyTapped(_ sender: UIButton) {
@@ -238,8 +392,7 @@ class ClaviKeyboardView: UIView {
 
     private func updateTranslitButton() {
         translitButton?.backgroundColor = translitActive
-            ? translitOnColor.withAlphaComponent(0.3)
-            : specialColor
+            ? translitOnColor.withAlphaComponent(0.3) : specialColor
         translitButton?.setTitleColor(translitActive ? translitOnColor : textColor, for: .normal)
     }
 
