@@ -20,6 +20,22 @@ class SettingsActivity : AppCompatActivity() {
         const val PREF_DIACRITICS_LOCALE = "diacritics_locale"
         const val PREF_DEFAULT_LANGUAGE = "default_language"
         const val PREF_HAPTIC = "haptic_feedback"
+        const val PREF_TRANSLATION_SOURCE = "translation_source_lang"
+        const val PREF_TRANSLATION_TARGET = "translation_target_lang"
+
+        // Translation language options: display name → BCP 47 code (null = Off)
+        val TRANSLATION_LANGUAGES = listOf(
+            "Off"                    to null,
+            "English (en)"           to "en",
+            "Ukrainian (uk)"         to "uk",
+            "German (de)"            to "de",
+            "French (fr)"            to "fr",
+            "Spanish (es)"           to "es",
+            "Portuguese (pt)"        to "pt",
+            "Norwegian (no)"         to "no",
+            "Chinese (zh)"           to "zh",
+            "Japanese (ja)"          to "ja",
+        )
 
         // Displayed name → locale code (null = off)
         val DIACRITICS_OPTIONS = listOf(
@@ -165,6 +181,76 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
         layout.addView(langSaveBtn)
+
+        // ── Section: Translation ──
+        layout.addView(sectionHeader("Translation", dp))
+
+        layout.addView(TextView(this).apply {
+            text = "Translate while you type. After each space, a blue strip shows the translation " +
+                   "— tap to replace your text. First use downloads ~30MB model (WiFi only)."
+            textSize = 14f
+            setTextColor(0xFFB0BEC5.toInt())
+            setPadding(0, 0, 0, (12 * dp).toInt())
+        })
+
+        val savedSrc = prefs.getString(PREF_TRANSLATION_SOURCE, null)
+        val savedTgt = prefs.getString(PREF_TRANSLATION_TARGET, null)
+        val srcIndex = TRANSLATION_LANGUAGES.indexOfFirst { it.second == savedSrc }.coerceAtLeast(0)
+        val tgtIndex = TRANSLATION_LANGUAGES.indexOfFirst { it.second == savedTgt }.coerceAtLeast(1)
+
+        layout.addView(TextView(this).apply {
+            text = "Source language"
+            textSize = 13f
+            setTextColor(0xFFFFFFFF.toInt())
+            setPadding(0, (8 * dp).toInt(), 0, 0)
+        })
+        val srcSpinner = Spinner(this).apply {
+            adapter = ArrayAdapter(
+                this@SettingsActivity,
+                android.R.layout.simple_spinner_dropdown_item,
+                TRANSLATION_LANGUAGES.map { it.first }
+            )
+            setSelection(srcIndex)
+        }
+        layout.addView(srcSpinner)
+
+        layout.addView(TextView(this).apply {
+            text = "Target language"
+            textSize = 13f
+            setTextColor(0xFFFFFFFF.toInt())
+            setPadding(0, (8 * dp).toInt(), 0, 0)
+        })
+        val tgtSpinner = Spinner(this).apply {
+            adapter = ArrayAdapter(
+                this@SettingsActivity,
+                android.R.layout.simple_spinner_dropdown_item,
+                TRANSLATION_LANGUAGES.map { it.first }
+            )
+            setSelection(tgtIndex)
+        }
+        layout.addView(tgtSpinner)
+
+        val transSaveBtn = Button(this).apply {
+            text = "Save Translation Settings"
+            setBackgroundColor(0xFF1565C0.toInt())
+            setTextColor(0xFFFFFFFF.toInt())
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).also { it.topMargin = (8 * dp).toInt() }
+            setOnClickListener {
+                val src = TRANSLATION_LANGUAGES[srcSpinner.selectedItemPosition].second
+                val tgt = TRANSLATION_LANGUAGES[tgtSpinner.selectedItemPosition].second
+                prefs.edit().apply {
+                    if (src == null) remove(PREF_TRANSLATION_SOURCE) else putString(PREF_TRANSLATION_SOURCE, src)
+                    if (tgt == null) remove(PREF_TRANSLATION_TARGET) else putString(PREF_TRANSLATION_TARGET, tgt)
+                }.apply()
+                val msg = if (src == null) "Translation off"
+                          else "Translation: $src → $tgt"
+                Toast.makeText(this@SettingsActivity, msg, Toast.LENGTH_SHORT).show()
+            }
+        }
+        layout.addView(transSaveBtn)
 
         // ── Section: Haptic Feedback ──
         layout.addView(sectionHeader("Haptic Feedback", dp))

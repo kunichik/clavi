@@ -26,6 +26,7 @@ struct TextFixEngine {
         if let fix = fixUkrainianTypo(textBefore)       { return fix }
         if let fix = fixEnglishTypo(textBefore)         { return fix }
         if let fix = fixRepeatedChars(textBefore)       { return fix }
+        if let fix = fixAccidentalCaps(textBefore)      { return fix }
 
         return nil
     }
@@ -120,6 +121,22 @@ struct TextFixEngine {
         guard fixed != lastWord else { return nil }
         let prefix = String(text.dropLast(lastWord.count))
         return Fix(original: text, fixed: prefix + fixed, description: "repeated characters")
+    }
+
+    private static func fixAccidentalCaps(_ text: String) -> Fix? {
+        guard let word = extractLastWord(text), word.count >= 4 else { return nil }
+        let chars = Array(word)
+        // Pattern: first two chars uppercase, at least one lowercase after (e.g. "ПРивіт", "HEllo")
+        guard chars[0].isUppercase && chars[1].isUppercase else { return nil }
+        guard chars.dropFirst(2).contains(where: { $0.isLowercase }) else { return nil }
+        // Fix: keep first char uppercase, lowercase the rest
+        let fixed = String(chars[0]) + String(word.dropFirst()).lowercased()
+        guard fixed != word else { return nil }
+        let prefix = String(text.dropLast(word.count))
+        let shortWord = word.count > 6 ? String(word.prefix(6)) + "…" : word
+        let shortFixed = fixed.count > 6 ? String(fixed.prefix(6)) + "…" : fixed
+        return Fix(original: text, fixed: prefix + fixed,
+                   description: "caps: \(shortWord) → \(shortFixed)")
     }
 
     private static func extractLastWord(_ text: String) -> String? {

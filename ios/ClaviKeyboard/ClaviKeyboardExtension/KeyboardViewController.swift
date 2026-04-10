@@ -25,6 +25,7 @@ class KeyboardViewController: UIInputViewController {
     private var translitBuffer = ""
 
     private var diacriticsLocale: String? = nil   // set from app group UserDefaults
+    private var translationEngine: TranslationEngine? = nil
 
     // MARK: - Lifecycle
 
@@ -40,8 +41,19 @@ class KeyboardViewController: UIInputViewController {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         loadPreferences()
-        clipboardHistory.refresh()
-        keyboardView.clipItems = clipboardHistory.recent
+
+        // Password field detection: hide sensitive strips for privacy
+        let isPassword = textDocumentProxy.keyboardType == .some(.asciiCapableNumberPad) ||
+            textDocumentProxy.textContentType == .password ||
+            textDocumentProxy.textContentType == .newPassword
+        if isPassword {
+            keyboardView.clipItems = []
+            keyboardView.translationSuggestion = nil
+            if translitMode { handleTranslitToggle() }
+        } else {
+            clipboardHistory.refresh()
+            keyboardView.clipItems = clipboardHistory.recent
+        }
     }
 
     // MARK: - Preferences
@@ -53,6 +65,12 @@ class KeyboardViewController: UIInputViewController {
         diacriticsLocale = defaults.string(forKey: "diacritics_locale")
         let savedLang = defaults.string(forKey: "default_language") ?? "UK"
         currentLanguage = savedLang == "EN" ? .en : .uk
+
+        let transSrc = defaults.string(forKey: "translation_source_lang")
+        let transTgt = defaults.string(forKey: "translation_target_lang")
+        translationEngine = (transSrc != nil && transTgt != nil)
+            ? TranslationEngine(sourceLang: transSrc!, targetLang: transTgt!)
+            : nil
     }
 
     // MARK: - Setup
@@ -109,11 +127,21 @@ class KeyboardViewController: UIInputViewController {
             textDocumentProxy.insertText(text)
             showDiacriticsIfNeeded(text)
 
-            if text == " " {
+            if text == " " || text == "\n" {
                 let before = textDocumentProxy.documentContextBeforeInput ?? ""
-                keyboardView.fixSuggestion = TextFixEngine.analyze(before)
+                let fix = TextFixEngine.analyze(before)
+                keyboardView.fixSuggestion = fix
+                if fix == nil {
+                    keyboardView.translationSuggestion = nil
+                    translationEngine?.translate(before) { [weak self] suggestion in
+                        self?.keyboardView.translationSuggestion = suggestion
+                    }
+                } else {
+                    keyboardView.translationSuggestion = nil
+                }
             } else {
                 keyboardView.fixSuggestion = nil
+                keyboardView.translationSuggestion = nil
             }
         }
 
@@ -149,6 +177,7 @@ class KeyboardViewController: UIInputViewController {
     private func handleBackspace() {
         keyboardView.diacriticItems = []
         keyboardView.fixSuggestion = nil
+        keyboardView.translationSuggestion = nil
         if !translitBuffer.isEmpty {
             translitBuffer = String(translitBuffer.dropLast())
         } else {
@@ -233,6 +262,19 @@ extension KeyboardViewController: ClaviKeyboardViewDelegate {
 
     func didDismissFix() {
         keyboardView.fixSuggestion = nil
+    }
+
+    func didTapTranslation(_ suggestion: TranslationEngine.TranslationSuggestion) {
+        // Delete the original phrase and insert the translation
+        for _ in 0..<suggestion.original.count {
+            textDocumentProxy.deleteBackward()
+        }
+        textDocumentProxy.insertText(suggestion.translated)
+        keyboardView.translationSuggestion = nil
+    }
+
+    func didDismissTranslation() {
+        keyboardView.translationSuggestion = nil
     }
 
     func didTapNextKeyboard() {

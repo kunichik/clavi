@@ -1,6 +1,7 @@
 package com.clavi.keyboard
 
 import android.inputmethodservice.InputMethodService
+import android.text.InputType
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.Toast
@@ -33,6 +34,9 @@ class ClaviIME : InputMethodService(),
     // Set this to e.g. "pt", "de", "fr" to enable the smart diacritics strip
     private var diacriticsLocale: String? = null
 
+    // Translation engine — null when translation is disabled in settings
+    private var translationEngine: TranslationEngine? = null
+
     private val translitBuffer = StringBuilder()
 
     // ── Lifecycle ──
@@ -47,6 +51,10 @@ class ClaviIME : InputMethodService(),
         val savedLang = prefs.getString(SettingsActivity.PREF_DEFAULT_LANGUAGE, Language.UK.name)
         currentLanguage = Language.entries.firstOrNull { it.name == savedLang } ?: Language.UK
         keyboardView.hapticEnabled = prefs.getBoolean(SettingsActivity.PREF_HAPTIC, true)
+        val transSrc = prefs.getString(SettingsActivity.PREF_TRANSLATION_SOURCE, null)
+        val transTgt = prefs.getString(SettingsActivity.PREF_TRANSLATION_TARGET, null)
+        translationEngine = if (transSrc != null && transTgt != null)
+            TranslationEngine(transSrc, transTgt, this) else null
 
         keyboardView = ClaviKeyboardView(this)
         keyboardView.listener = this
@@ -61,9 +69,23 @@ class ClaviIME : InputMethodService(),
         super.onStartInputView(info, restarting)
         translitBuffer.clear()
         updateKeyboardLayout()
-        // Refresh strip in case clipboard changed while keyboard was hidden
-        keyboardView.clipItems = clipboardHistory.getRecent()
-            .map { clipboardHistory.displayLabel(it) }
+
+        // Password field detection: hide clipboard strip and disable translit for privacy
+        val inputType = info?.inputType ?: 0
+        val variation = inputType and InputType.TYPE_MASK_VARIATION
+        val isPassword = (inputType and InputType.TYPE_MASK_CLASS) == InputType.TYPE_CLASS_TEXT &&
+            (variation == InputType.TYPE_TEXT_VARIATION_PASSWORD ||
+             variation == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD ||
+             variation == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD)
+        if (isPassword) {
+            keyboardView.clipItems = emptyList()
+            keyboardView.translationSuggestion = null
+            if (translitMode) handleTranslitToggle()
+        } else {
+            // Refresh strip in case clipboard changed while keyboard was hidden
+            keyboardView.clipItems = clipboardHistory.getRecent()
+                .map { clipboardHistory.displayLabel(it) }
+        }
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
@@ -115,6 +137,17 @@ class ClaviIME : InputMethodService(),
         keyboardView.fixSuggestion = null
     }
 
+    override fun onTranslationTap(suggestion: TranslationEngine.TranslationSuggestion) {
+        val ic = currentInputConnection ?: return
+        ic.deleteSurroundingText(suggestion.original.length, 0)
+        ic.commitText(suggestion.translated, 1)
+        keyboardView.translationSuggestion = null
+    }
+
+    override fun onTranslationDismiss() {
+        keyboardView.translationSuggestion = null
+    }
+
     // ── ClaviKeyboardView.OnKeyListener ──
 
     override fun onKey(key: Key) {
@@ -144,12 +177,23 @@ class ClaviIME : InputMethodService(),
             ic.commitText(text, 1)
             // Show diacritics strip if this letter has variants in the active locale
             showDiacriticsIfNeeded(text)
-            // After space: run fix analysis on the text before cursor
-            if (text == " ") {
+            // After space or newline: run fix + translation analysis
+            if (text == " " || text == "\n") {
                 val textBefore = ic.getTextBeforeCursor(200, 0)?.toString() ?: ""
-                keyboardView.fixSuggestion = TextFixEngine.analyze(textBefore)
+                val fix = TextFixEngine.analyze(textBefore)
+                keyboardView.fixSuggestion = fix
+                // Translation only when fix strip is not showing
+                if (fix == null) {
+                    keyboardView.translationSuggestion = null
+                    translationEngine?.translate(textBefore) { suggestion ->
+                        runOnUiThread { keyboardView.translationSuggestion = suggestion }
+                    }
+                } else {
+                    keyboardView.translationSuggestion = null
+                }
             } else {
                 keyboardView.fixSuggestion = null
+                keyboardView.translationSuggestion = null
             }
         }
 
@@ -200,6 +244,7 @@ class ClaviIME : InputMethodService(),
         val ic = currentInputConnection ?: return
         clearDiacritics()
         keyboardView.fixSuggestion = null
+        keyboardView.translationSuggestion = null
         if (translitBuffer.isNotEmpty()) {
             translitBuffer.deleteCharAt(translitBuffer.length - 1)
         } else {
