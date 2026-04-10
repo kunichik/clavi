@@ -1,6 +1,8 @@
 package com.clavi.keyboard
 
 import android.inputmethodservice.InputMethodService
+import android.os.Handler
+import android.os.Looper
 import android.text.InputType
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -186,7 +188,9 @@ class ClaviIME : InputMethodService(),
                 if (fix == null) {
                     keyboardView.translationSuggestion = null
                     translationEngine?.translate(textBefore) { suggestion ->
-                        runOnUiThread { keyboardView.translationSuggestion = suggestion }
+                        Handler(Looper.getMainLooper()).post {
+                            keyboardView.translationSuggestion = suggestion
+                        }
                     }
                 } else {
                     keyboardView.translationSuggestion = null
