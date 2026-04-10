@@ -45,7 +45,8 @@ class ClaviIME : InputMethodService(),
         val prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE)
         diacriticsLocale = prefs.getString(SettingsActivity.PREF_DIACRITICS_LOCALE, null)
         val savedLang = prefs.getString(SettingsActivity.PREF_DEFAULT_LANGUAGE, Language.UK.name)
-        currentLanguage = if (savedLang == Language.EN.name) Language.EN else Language.UK
+        currentLanguage = Language.entries.firstOrNull { it.name == savedLang } ?: Language.UK
+        keyboardView.hapticEnabled = prefs.getBoolean(SettingsActivity.PREF_HAPTIC, true)
 
         keyboardView = ClaviKeyboardView(this)
         keyboardView.listener = this
@@ -225,16 +226,21 @@ class ClaviIME : InputMethodService(),
     private fun handleLanguageSwitch() {
         flushTranslitBuffer(force = true)
         currentLanguage = when (currentLanguage) {
-            Language.UK -> Language.EN
-            Language.EN -> Language.UK
+            Language.UK  -> Language.EN
+            Language.EN  -> Language.QUC
+            Language.QUC -> Language.UK
         }
         shifted = false
         capsLock = false
         symbolsMode = false
+        if (translitMode && currentLanguage == Language.QUC) {
+            translitMode = false  // translit not applicable for K'iche'
+        }
         updateKeyboardLayout()
     }
 
     private fun handleTranslitToggle() {
+        if (currentLanguage == Language.QUC) return  // translit not applicable for K'iche'
         flushTranslitBuffer(force = true)
         translitMode = !translitMode
         if (translitMode) currentLanguage = Language.EN

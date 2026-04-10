@@ -19,6 +19,7 @@ class SettingsActivity : AppCompatActivity() {
         const val PREFS_NAME = "clavi_prefs"
         const val PREF_DIACRITICS_LOCALE = "diacritics_locale"
         const val PREF_DEFAULT_LANGUAGE = "default_language"
+        const val PREF_HAPTIC = "haptic_feedback"
 
         // Displayed name → locale code (null = off)
         val DIACRITICS_OPTIONS = listOf(
@@ -145,19 +146,38 @@ class SettingsActivity : AppCompatActivity() {
             setPadding(0, 0, 0, (12 * dp).toInt())
         })
 
+        val langOptions = listOf("Ukrainian (УК)" to Language.UK.name, "English (EN)" to Language.EN.name, "K'iche' (Q')" to Language.QUC.name)
         val savedDefaultLang = prefs.getString(PREF_DEFAULT_LANGUAGE, Language.UK.name)
-        val defaultLangToggle = ToggleButton(this).apply {
-            textOn = "Default: English"
-            textOff = "Default: Ukrainian"
-            isChecked = savedDefaultLang == Language.EN.name
-            setOnCheckedChangeListener { _, isChecked ->
-                val lang = if (isChecked) Language.EN.name else Language.UK.name
+        val langSpinner = Spinner(this).apply {
+            adapter = ArrayAdapter(this@SettingsActivity, android.R.layout.simple_spinner_dropdown_item, langOptions.map { it.first })
+            setSelection(langOptions.indexOfFirst { it.second == savedDefaultLang }.coerceAtLeast(0))
+        }
+        layout.addView(langSpinner)
+
+        val langSaveBtn = Button(this).apply {
+            text = "Save Language"
+            setBackgroundColor(0xFF1565C0.toInt())
+            setTextColor(0xFFFFFFFF.toInt())
+            setOnClickListener {
+                val lang = langOptions[langSpinner.selectedItemPosition].second
                 prefs.edit().putString(PREF_DEFAULT_LANGUAGE, lang).apply()
-                val label = if (isChecked) "Default: English" else "Default: Ukrainian"
-                Toast.makeText(this@SettingsActivity, label, Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@SettingsActivity, "Default: ${langOptions[langSpinner.selectedItemPosition].first}", Toast.LENGTH_SHORT).show()
             }
         }
-        layout.addView(defaultLangToggle)
+        layout.addView(langSaveBtn)
+
+        // ── Section: Haptic Feedback ──
+        layout.addView(sectionHeader("Haptic Feedback", dp))
+
+        val hapticToggle = ToggleButton(this).apply {
+            textOn = "Vibration: On"
+            textOff = "Vibration: Off"
+            isChecked = prefs.getBoolean(PREF_HAPTIC, true)
+            setOnCheckedChangeListener { _, isChecked ->
+                prefs.edit().putBoolean(PREF_HAPTIC, isChecked).apply()
+            }
+        }
+        layout.addView(hapticToggle)
 
         setContentView(scroll)
     }

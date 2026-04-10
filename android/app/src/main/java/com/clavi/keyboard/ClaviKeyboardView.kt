@@ -43,6 +43,7 @@ class ClaviKeyboardView @JvmOverloads constructor(
     var stripListener: OnStripListener? = null
     var translitActive = false
     var currentLanguage = Language.UK
+    var hapticEnabled = true
 
     // Clipboard strip data — set from ClaviIME
     var clipItems: List<String> = emptyList()
@@ -453,7 +454,7 @@ class ClaviKeyboardView @JvmOverloads constructor(
                             longPressHandler.postDelayed(longPressRunnable, 500)
                         }
                         invalidate()
-                        performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        if (hapticEnabled) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         return true
                     }
                     return true
@@ -463,7 +464,7 @@ class ClaviKeyboardView @JvmOverloads constructor(
                 if (hit != null) {
                     pressedKey = hit.second
                     invalidate()
-                    performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    if (hapticEnabled) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                 }
                 return true
             }

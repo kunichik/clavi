@@ -1,6 +1,6 @@
 package com.clavi.keyboard
 
-enum class Language { UK, EN }
+enum class Language { UK, EN, QUC }
 
 data class Key(
     val label: String,
@@ -25,8 +25,9 @@ object KeyboardLayout {
 
     fun getLayout(language: Language, shifted: Boolean): List<Row> {
         return when (language) {
-            Language.UK -> if (shifted) ukShifted else ukNormal
-            Language.EN -> if (shifted) enShifted else enNormal
+            Language.UK  -> if (shifted) ukShifted else ukNormal
+            Language.EN  -> if (shifted) enShifted else enNormal
+            Language.QUC -> if (shifted) qucShifted else qucNormal
         }
     }
 
@@ -134,6 +135,62 @@ object KeyboardLayout {
             Key(" ", KEYCODE_SPACE, 4.5f, true),
             Key(".", code = '.'.code),
             Key("Tr", KEYCODE_TRANSLIT, 1f, true),
+            Key("\u21B5", KEYCODE_ENTER, 1.3f, true, "enter"),
+        )),
+    )
+
+    // ── K'iche' (QUC) — ALMG standard orthography ──
+    // Letters: a b' ch ch' e i j k k' m n o p q q' r s t t' tz tz' u w x xh y
+    // Digraphs ch/tz/xh as single keys; apostrophe for glottalization (b' k' q' t' ch' tz')
+
+    private val qucNormal = listOf(
+        Row(listOf(
+            Key("q"), Key("w"), Key("e"), Key("r"), Key("t"),
+            Key("y"), Key("u"), Key("i"), Key("o"), Key("p"),
+        )),
+        Row(listOf(
+            Key("a"), Key("s"), Key("j"), Key("f"), Key("g"),
+            Key("h"), Key("'"), Key("k"), Key("l"),
+        )),
+        Row(listOf(
+            Key("\u2191", KEYCODE_SHIFT, 1.3f, true, "shift"),
+            Key("ch", isSpecial = false, widthMultiplier = 1.4f),
+            Key("tz", isSpecial = false, widthMultiplier = 1.4f),
+            Key("xh", isSpecial = false, widthMultiplier = 1.4f),
+            Key("z"), Key("x"), Key("b"), Key("n"), Key("m"),
+            Key("\u232B", KEYCODE_BACKSPACE, 1.3f, true, "backspace"),
+        )),
+        Row(listOf(
+            Key("123", KEYCODE_SYMBOLS, 1.2f, true),
+            Key("Q'", KEYCODE_LANG_SWITCH, 1f, true),
+            Key(" ", KEYCODE_SPACE, 4f, true),
+            Key(".", code = '.'.code),
+            Key("\u21B5", KEYCODE_ENTER, 1.3f, true, "enter"),
+        )),
+    )
+
+    private val qucShifted = listOf(
+        Row(listOf(
+            Key("Q"), Key("W"), Key("E"), Key("R"), Key("T"),
+            Key("Y"), Key("U"), Key("I"), Key("O"), Key("P"),
+        )),
+        Row(listOf(
+            Key("A"), Key("S"), Key("J"), Key("F"), Key("G"),
+            Key("H"), Key("'"), Key("K"), Key("L"),
+        )),
+        Row(listOf(
+            Key("\u2191", KEYCODE_SHIFT, 1.3f, true, "shift"),
+            Key("Ch", isSpecial = false, widthMultiplier = 1.4f),
+            Key("Tz", isSpecial = false, widthMultiplier = 1.4f),
+            Key("Xh", isSpecial = false, widthMultiplier = 1.4f),
+            Key("Z"), Key("X"), Key("B"), Key("N"), Key("M"),
+            Key("\u232B", KEYCODE_BACKSPACE, 1.3f, true, "backspace"),
+        )),
+        Row(listOf(
+            Key("123", KEYCODE_SYMBOLS, 1.2f, true),
+            Key("Q'", KEYCODE_LANG_SWITCH, 1f, true),
+            Key(" ", KEYCODE_SPACE, 4f, true),
+            Key(".", code = '.'.code),
             Key("\u21B5", KEYCODE_ENTER, 1.3f, true, "enter"),
         )),
     )

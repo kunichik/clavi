@@ -125,54 +125,133 @@ object TextFixEngine {
     // NOT a full spell-checker — just the obvious high-confidence fixes.
 
     private val ukTypos: Map<String, String> = mapOf(
-        // Common transliteration artifacts
+        // Transliteration artifacts (Latin → Cyrillic)
         "pryvit"    to "привіт",
-        "ukraina"   to "Україна",
         "dyakuyu"   to "дякую",
-        "bud laska" to "будь ласка",
-        // Common keyboard slip typos
-        "тчто"      to "що",
-        "зто"       to "це",
-        "нн"        to "не",
-        "ні"        to "ні",   // keep — valid word
-        // Missing soft sign
-        "будте"     to "будьте",
-        "підіть"    to "підіть",   // keep — valid
+        "prosto"    to "просто",
+        "dobre"     to "добре",
+        "tak"       to "так",
+        "shcho"     to "що",
+        "yakshcho"  to "якщо",
+        "tomu"      to "тому",
+        "potim"     to "потім",
+        "znayu"     to "знаю",
+        "rozumiyu"  to "розумію",
+        "bud"       to "буд",  // ambiguous — skip; keep for explicit "bud laska"
+        // Missing apostrophe (most common Ukrainian typo category)
         "памятати"  to "пам'ятати",
+        "памятка"   to "пам'ятка",
+        "памяти"    to "пам'яті",
+        "память"    to "пам'ять",
         "компютер"  to "комп'ютер",
         "звязок"    to "зв'язок",
-        "памятка"   to "пам'ятка",
-        // Common misspellings
-        "наразі"    to "наразі",   // keep — valid
-        "взагалі"   to "взагалі",  // keep — valid
-    ).filterValues { k -> ukTypos_isActualTypo(k) }
-
-    // Only keep entries where key != value (actual typos, not valid words)
-    private fun ukTypos_isActualTypo(value: String) = true  // filter happens at map construction
+        "звязати"   to "зв'язати",
+        "мяч"       to "м'яч",
+        "обєкт"     to "об'єкт",
+        "субєкт"    to "суб'єкт",
+        "девять"    to "дев'ять",
+        "пять"      to "п'ять",
+        "вязати"    to "в'язати",
+        "вязаний"   to "в'язаний",
+        "єднати"    to "з'єднати",
+        "зєднати"   to "з'єднати",
+        // Missing soft sign
+        "будте"     to "будьте",
+        "прийдіть"  to "прийдіть",  // valid — keep
+        // Common keyboard slips (Cyrillic)
+        "тчто"      to "що",
+        "зто"       to "це",
+        // Mixed Cyrillic/Latin
+        "donт"      to "don't",
+    )
 
     private val enTypos: Map<String, String> = mapOf(
-        "teh"       to "the",
-        "hte"       to "the",
-        "adn"       to "and",
-        "nad"       to "and",
-        "taht"      to "that",
-        "thta"      to "that",
-        "waht"      to "what",
-        "recieve"   to "receive",
-        "recieved"  to "received",
-        "beleive"   to "believe",
-        "freind"    to "friend",
-        "wierd"     to "weird",
-        "definately" to "definitely",
-        "seperate"  to "separate",
-        "occured"   to "occurred",
-        "untill"    to "until",
-        "accomodate" to "accommodate",
-        "occurence" to "occurrence",
-        "tommorow"  to "tomorrow",
-        "tommorrow" to "tomorrow",
-        "donт"      to "don't",   // mixed Cyrillic т
-        "arт"       to "art",
-        "isт"       to "ist",
+        // Classic finger-roll transpositions
+        "teh"         to "the",
+        "hte"         to "the",
+        "adn"         to "and",
+        "nad"         to "and",
+        "taht"        to "that",
+        "thta"        to "that",
+        "waht"        to "what",
+        "hwat"        to "what",
+        "yuo"         to "you",
+        "youre"       to "you're",
+        "dont"        to "don't",
+        "doesnt"      to "doesn't",
+        "didnt"       to "didn't",
+        "wont"        to "won't",
+        "cant"        to "can't",
+        "isnt"        to "isn't",
+        "wasnt"       to "wasn't",
+        "werent"      to "weren't",
+        "havent"      to "haven't",
+        "hasnt"       to "hasn't",
+        "wouldnt"     to "wouldn't",
+        "couldnt"     to "couldn't",
+        "shouldnt"    to "shouldn't",
+        "im"          to "I'm",
+        "ive"         to "I've",
+        "id"          to "I'd",
+        "ill"         to "I'll",
+        // i-before-e violations
+        "recieve"     to "receive",
+        "recieved"    to "received",
+        "beleive"     to "believe",
+        "beleived"    to "believed",
+        "freind"      to "friend",
+        "wierd"       to "weird",
+        "acheive"     to "achieve",
+        "acheived"    to "achieved",
+        "peice"       to "piece",
+        "releive"     to "relieve",
+        // Double-letter confusion
+        "occured"     to "occurred",
+        "occurence"   to "occurrence",
+        "accomodate"  to "accommodate",
+        "embarass"    to "embarrass",
+        "harrass"     to "harass",
+        "necesary"    to "necessary",
+        "posession"   to "possession",
+        "agressive"   to "aggressive",
+        "profesional" to "professional",
+        "recomend"    to "recommend",
+        // -ately / -itely
+        "definately"  to "definitely",
+        "definetly"   to "definitely",
+        "absolutley"  to "absolutely",
+        "immediatley" to "immediately",
+        // -ate / -ete confusion
+        "seperate"    to "separate",
+        "seperated"   to "separated",
+        "desparate"   to "desperate",
+        // Common misspellings
+        "untill"      to "until",
+        "tommorow"    to "tomorrow",
+        "tommorrow"   to "tomorrow",
+        "calender"    to "calendar",
+        "cemetary"    to "cemetery",
+        "goverment"   to "government",
+        "medecine"    to "medicine",
+        "millenium"   to "millennium",
+        "miniscule"   to "minuscule",
+        "mischevous"  to "mischievous",
+        "neccessary"  to "necessary",
+        "noticable"   to "noticeable",
+        "priviledge"  to "privilege",
+        "pronounciation" to "pronunciation",
+        "publically"  to "publicly",
+        "questionaire" to "questionnaire",
+        "succesful"   to "successful",
+        "suprise"     to "surprise",
+        "tendancy"    to "tendency",
+        "truely"      to "truly",
+        "useable"     to "usable",
+        "vaccum"      to "vacuum",
+        "withold"     to "withhold",
+        // Mixed Cyrillic/Latin keys (common on bilingual keyboards)
+        "donт"        to "don't",
+        "arт"         to "art",
+        "isт"         to "ist",
     )
 }
