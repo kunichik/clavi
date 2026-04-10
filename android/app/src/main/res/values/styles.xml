@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Clavi" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#FF4FC3F7</item>
+        <item name="colorPrimaryVariant">#FF0288D1</item>
+        <item name="colorOnPrimary">#FF000000</item>
+        <item name="colorSecondary">#FFFFAB40</item>
+    </style>
+</resources>

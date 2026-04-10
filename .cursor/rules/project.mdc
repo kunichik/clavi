@@ -1,0 +1,73 @@
+---
+description: Clavi project rules — apply to all files
+alwaysApply: true
+---
+
+# Clavi Keyboard — Project Rules
+
+## Identity
+Cross-platform keyboard layout switcher + language bridge. Name from Latin `clavis` = key.
+Solves: wrong layout detection (desktop), phonetic Ukrainian translit, smart diacritics, clipboard history.
+
+## Absolute Constraints
+
+- **Russian language = permanently banned.** No `ru` locale, no Russian keyboard map, no Russian dictionary entries, no Russian text anywhere. `pack_loader.cpp` must hardcode this rejection.
+- **No network calls** from any engine class (`ClaviIME`, `TextFixEngine`, `DiacriticsEngine`, etc.)
+- **No telemetry, no accounts, no cloud** — fully local, always.
+- License: **GPLv3** (core) + **CC BY-SA 4.0** (packs in `packs/`).
+
+## Repo Structure
+
+| Path | Platform | Language |
+|------|----------|----------|
+| `android/app/src/main/java/com/clavi/keyboard/` | Android IME | Kotlin |
+| `ios/ClaviKeyboard/ClaviKeyboardExtension/` | iOS Keyboard | Swift |
+| `core/` | Desktop daemon | C++20 |
+| `packs/` | Language packs | TOML + .bin |
+
+## Android Key Files
+
+- `ClaviIME.kt` — `InputMethodService`, all key handling, strip logic
+- `ClaviKeyboardView.kt` — Canvas-drawn keyboard + 3-strip system
+- `KeyboardLayout.kt` — UK ЙЦУКЕН + EN QWERTY + symbols layouts
+- `TranslitEngine.kt` — KMU 2010: `shch→щ`, `zh→ж`, `ch→ч`…
+- `DiacriticsEngine.kt` — frequency-ordered diacritic variants per locale
+- `ClipboardHistory.kt` — `ClipboardManager` listener, max 20 items
+- `TextFixEngine.kt` — local typo fix, returns `Fix(original, fixed, description)`
+- `SettingsActivity.kt` — diacritics locale + default language prefs
+
+## Android Build
+
+```bash
+cd android && ./gradlew assembleDebug
+```
+Min SDK 26, target 35, JDK 17, no NDK.
+
+## Strip Priority (never reorder)
+1. **Fix strip** (green) — TextFixEngine has a suggestion
+2. **Diacritics strip** (teal) — last typed letter has variants
+3. **Clipboard strip** (dark) — default
+
+## TextFixEngine Principle: Fix, Don't Rewrite
+Only correct: double space, space before punct, missing space after sentence-end, high-confidence typos (`teh→the`, `recieve→receive`), 3+ repeated chars.
+**Never:** change word choice, structure, or style. If unsure → return `null`.
+
+## iOS Mirror Rule
+Android and iOS implementations must stay in sync:
+- Same translit table
+- Same diacritics tables
+- Same strip UX behavior
+- Same keyboard layout structure
+
+## Code Style
+- **Kotlin**: official style, ktlint, 4-space indent, no semicolons
+- **Swift**: SwiftLint, 4-space indent
+- **C++**: Google style, clang-format, 100-col, C++20, `std::expected` not exceptions
+- **Config**: TOML only — no YAML anywhere
+
+## Do NOT
+- Use `android.inputmethodservice.Keyboard` (deprecated)
+- Use `RecyclerView` inside keyboard view (Canvas only)
+- Add Grammarly-style rewrites to TextFixEngine
+- Break fix > diacritics > clipboard strip order
+- Commit secrets or `.env` files

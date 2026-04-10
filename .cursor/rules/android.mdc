@@ -1,0 +1,61 @@
+---
+description: Android IME rules for files under android/
+globs: android/**
+alwaysApply: false
+---
+
+# Android IME — Cursor Rules
+
+## Architecture
+`InputMethodService` + Canvas-drawn view. No deprecated `android.inputmethodservice.Keyboard`.
+
+## Class Responsibilities
+
+### ClaviIME.kt
+- Owns all state: `currentLanguage`, `shifted`, `capsLock`, `translitMode`, `symbolsMode`, `diacriticsLocale`
+- `handleCharacter(key)`: commit text → diacritics check → if space, run TextFixEngine
+- `handleBackspace()`: clear diacritics + fix suggestion, delete char or pop translit buffer
+- `flushTranslitBuffer(force)`: resolve digraph buffer → commitText
+- Reads SharedPreferences in `onCreateInputView()` only
+
+### ClaviKeyboardView.kt
+- All drawing in `onDraw()`: strip then keys
+- `onTouchEvent()`: dispatch to strip or key area
+- Properties: `clipItems`, `diacriticItems`, `fixSuggestion`
+- Interfaces: `OnKeyListener`, `OnStripListener`
+
+### TranslitEngine.kt
+- `tryTransliterate(buffer): Pair<String, Int>?` — returns (cyrillic, charsConsumed) or null
+- `isDigraphStart(c): Boolean` — true for `s`,`z`,`k`,`t`,`c`,`i`,`y`
+- KMU 2010 rules: shch(4)→щ, zh/kh/ts/ch/sh/iu/ia/ie/yi(2)→ Ukrainian
+
+### TextFixEngine.kt
+- `analyze(textBefore: String): Fix?`
+- Fix types in order: double space → space-before-punct → missing-space-after-sent → ukr typos → en typos → repeated chars
+- `Fix(original, fixed, description)` — original/fixed are FULL textBefore strings, not just the changed word
+
+### DiacriticsEngine.kt
+- `suggest(char, locale): List<String>` — frequency-ordered, includes base letter as last
+- Returns empty list if no variants (diacritics strip hidden)
+- Supports: pt, de, no, nb, fr, es, sv, fi, pl
+
+## Patterns to Follow
+```kotlin
+// Reading prefs — only in onCreateInputView, not on every keypress
+val prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE)
+
+// Committing text
+currentInputConnection?.commitText(text, 1)
+
+// After fix applied — clear the suggestion
+keyboardView.fixSuggestion = null
+
+// Inside Paint.apply{} — use this.textSize to avoid val shadowing
+val paint = Paint().apply { this.textSize = 14f * density }
+```
+
+## Common Pitfalls
+- `val textSize` in outer scope + `textSize =` inside `apply {}` → Kotlin thinks you're reassigning the val. Use `this.textSize =`.
+- `InputConnection` can be null between keystrokes — always null-check.
+- `ClipboardHistory` must `stopListening()` in `onDestroy` — leak otherwise.
+- `translitBuffer` must be cleared in `onFinishInputView` and `onStartInputView`.

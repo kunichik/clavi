@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Clavi</string>
+    <string name="settings_title">Налаштування Clavi</string>
+    <string name="subtype_uk">Українська</string>
+    <string name="subtype_en">Англійська</string>
+    <string name="translit_on">Транслін УВІМК</string>
+    <string name="translit_off">Транслін ВИМК</string>
+    <string name="lang_uk">УК</string>
+    <string name="lang_en">EN</string>
+    <string name="enable_instructions">Щоб використовувати клавіатуру Clavi:\n\n1. Відкрийте Налаштування \u2192 Система \u2192 Мови та введення \u2192 Екранна клавіатура\n2. Увімкніть \"Clavi\"\n3. Переключіться на Clavi в будь-якому текстовому полі</string>
+</resources>
