@@ -24,7 +24,14 @@ class KeyboardViewController: UIInputViewController {
     private var symbolsMode = false
     private var translitBuffer = ""
 
-    private var diacriticsLocale: String? = nil   // set from app group UserDefaults
+    // Language rotation
+    private var activeLanguages: [Language] = [.uk, .en]
+    private var currentLangIndex: Int = 0
+
+    // Diacritics: userLocale from Settings, diacriticsLocale = effective (may be auto-set)
+    private var userDiacriticsLocale: String? = nil
+    private var diacriticsLocale: String? = nil
+
     private var translationEngine: TranslationEngine? = nil
 
     // MARK: - Lifecycle
@@ -59,12 +66,20 @@ class KeyboardViewController: UIInputViewController {
     // MARK: - Preferences
 
     private func loadPreferences() {
-        // Shared UserDefaults between app and extension (requires App Group entitlement)
-        // Falls back to standard UserDefaults for now
         let defaults = UserDefaults(suiteName: "group.com.clavi.keyboard") ?? .standard
-        diacriticsLocale = defaults.string(forKey: "diacritics_locale")
-        let savedLang = defaults.string(forKey: "default_language") ?? "UK"
-        currentLanguage = savedLang == "EN" ? .en : .uk
+        userDiacriticsLocale = defaults.string(forKey: "diacritics_locale")
+        diacriticsLocale = userDiacriticsLocale
+
+        let savedLang = defaults.string(forKey: "default_language") ?? "uk"
+        currentLanguage = Language(rawValue: savedLang.lowercased()) ?? .uk
+
+        // Load active languages (array of rawValues stored as [String])
+        let defaultActive = ["uk", "en"]
+        let savedActive = (defaults.array(forKey: "active_languages") as? [String]) ?? defaultActive
+        // Preserve canonical Language.allCases order
+        activeLanguages = Language.allCases.filter { savedActive.contains($0.rawValue) }
+        if activeLanguages.isEmpty { activeLanguages = [.uk, .en] }
+        currentLangIndex = activeLanguages.firstIndex(of: currentLanguage) ?? 0
 
         let transSrc = defaults.string(forKey: "translation_source_lang")
         let transTgt = defaults.string(forKey: "translation_target_lang")
@@ -203,8 +218,15 @@ class KeyboardViewController: UIInputViewController {
 
     private func handleLangSwitch() {
         flushTranslitBuffer(force: true)
-        currentLanguage = currentLanguage == .uk ? .en : .uk
+        currentLangIndex = (currentLangIndex + 1) % activeLanguages.count
+        currentLanguage = activeLanguages[currentLangIndex]
+
+        // Auto-enable diacritics for European languages; restore user setting for others
+        diacriticsLocale = currentLanguage.diacriticsLocale ?? userDiacriticsLocale
+
         shifted = false; capsLock = false; symbolsMode = false
+        // Translit only makes sense in EN input mode (typing Latin → Ukrainian)
+        if translitMode && currentLanguage != .en { translitMode = false }
         updateLayout()
     }
 

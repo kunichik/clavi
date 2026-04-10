@@ -22,6 +22,31 @@ class SettingsActivity : AppCompatActivity() {
         const val PREF_HAPTIC = "haptic_feedback"
         const val PREF_TRANSLATION_SOURCE = "translation_source_lang"
         const val PREF_TRANSLATION_TARGET = "translation_target_lang"
+        const val PREF_ACTIVE_LANGUAGES = "active_languages"
+
+        /** All available languages with display name and locale for auto-diacritics. */
+        val ALL_LANGUAGES: List<Triple<Language, String, String?>> = listOf(
+            Triple(Language.UK,    "Ukrainian (УК)",    null),
+            Triple(Language.EN,    "English (EN)",      null),
+            Triple(Language.DE,    "German (DE)",       "de"),
+            Triple(Language.FR,    "French (FR)",       "fr"),
+            Triple(Language.ES,    "Spanish (ES)",      "es"),
+            Triple(Language.PT,    "Portuguese (PT)",   "pt"),
+            Triple(Language.NO,    "Norwegian (NO)",    "no"),
+            Triple(Language.ES_GT, "Guatemalan Spanish (GT)", "es"),
+            Triple(Language.QUC,   "K'iche' Maya (Q')", null),
+        )
+
+        /** Default active language set: just UK + EN. */
+        private val DEFAULT_ACTIVE = setOf(Language.UK.name, Language.EN.name)
+
+        /** Load the ordered list of active languages from prefs. */
+        fun loadActiveLanguages(prefs: android.content.SharedPreferences): List<Language> {
+            val saved = prefs.getStringSet(PREF_ACTIVE_LANGUAGES, DEFAULT_ACTIVE) ?: DEFAULT_ACTIVE
+            // Preserve the canonical order from ALL_LANGUAGES
+            return ALL_LANGUAGES.map { it.first }.filter { it.name in saved }
+                .ifEmpty { listOf(Language.UK, Language.EN) }
+        }
 
         // Translation language options: display name → BCP 47 code (null = Off)
         val TRANSLATION_LANGUAGES = listOf(
@@ -151,6 +176,48 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
         layout.addView(saveBtn)
+
+        // ── Section: Active Languages ──
+        layout.addView(sectionHeader("Active Languages", dp))
+
+        layout.addView(TextView(this).apply {
+            text = "Choose which keyboards appear in the language-switch cycle " +
+                   "(tap the language key to cycle). At least UK or EN must be selected."
+            textSize = 14f
+            setTextColor(0xFFB0BEC5.toInt())
+            setPadding(0, 0, 0, (8 * dp).toInt())
+        })
+
+        val savedActive = prefs.getStringSet(PREF_ACTIVE_LANGUAGES,
+            setOf(Language.UK.name, Language.EN.name)) ?: setOf(Language.UK.name, Language.EN.name)
+        val langCheckBoxes = ALL_LANGUAGES.map { (lang, displayName, _) ->
+            android.widget.CheckBox(this).apply {
+                text = displayName
+                textSize = 15f
+                setTextColor(0xFFFFFFFF.toInt())
+                isChecked = lang.name in savedActive
+                tag = lang.name
+            }
+        }
+        langCheckBoxes.forEach { layout.addView(it) }
+
+        val langSaveBtn = Button(this).apply {
+            text = "Save Active Languages"
+            setBackgroundColor(0xFF1565C0.toInt())
+            setTextColor(0xFFFFFFFF.toInt())
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).also { it.topMargin = (8 * dp).toInt(); it.bottomMargin = (8 * dp).toInt() }
+            setOnClickListener {
+                val selected = langCheckBoxes.filter { it.isChecked }.map { it.tag as String }.toSet()
+                val toSave = if (selected.isEmpty()) setOf(Language.UK.name, Language.EN.name) else selected
+                prefs.edit().putStringSet(PREF_ACTIVE_LANGUAGES, toSave).apply()
+                Toast.makeText(this@SettingsActivity,
+                    "Active: ${toSave.size} language(s)", Toast.LENGTH_SHORT).show()
+            }
+        }
+        layout.addView(langSaveBtn)
 
         // ── Section: Default Language ──
         layout.addView(sectionHeader("Default Language", dp))

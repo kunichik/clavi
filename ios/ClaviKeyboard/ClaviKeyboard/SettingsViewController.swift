@@ -65,6 +65,9 @@ final class SettingsViewController: UIViewController {
     private var selectedTranslSrcIndex: Int = 0   // default: Off
     private var selectedTranslTgtIndex: Int = 2   // default: Ukrainian
 
+    // Active Languages — which keyboards appear in the switch cycle
+    private var activeLangFlags: [Language: Bool] = [.uk: true, .en: true]
+
     private let defaults: UserDefaults = {
         UserDefaults(suiteName: "group.com.clavi.keyboard") ?? .standard
     }()
@@ -87,7 +90,10 @@ final class SettingsViewController: UIViewController {
     private let langCard        = UIView()
     private let langSegment     = UISegmentedControl(items: ["Ukrainian", "English"])
 
-    // Section 4 — Translation
+    // Section 4 — Active Languages
+    private let activeLangCard  = UIView()
+
+    // Section 5 — Translation
     private let translCard      = UIView()
     private let translSrcPicker = UIPickerView()
     private let translTgtPicker = UIPickerView()
@@ -109,6 +115,7 @@ final class SettingsViewController: UIViewController {
         setupSetupSection()
         setupDiacriticsSection()
         setupLanguageSection()
+        setupActiveLangSection()
         setupTranslationSection()
         applyUI()
     }
@@ -131,6 +138,12 @@ final class SettingsViewController: UIViewController {
         let savedTgt = defaults.string(forKey: "translation_target_lang")
         selectedTranslSrcIndex = translationLangs.firstIndex(where: { $0.code == savedSrc }) ?? 0
         selectedTranslTgtIndex = translationLangs.firstIndex(where: { $0.code == savedTgt }) ?? 2
+
+        let savedActive = (defaults.array(forKey: "active_languages") as? [String])
+            ?? ["uk", "en"]
+        for lang in Language.allCases {
+            activeLangFlags[lang] = savedActive.contains(lang.rawValue)
+        }
     }
 
     private func savePreferences() {
@@ -149,6 +162,10 @@ final class SettingsViewController: UIViewController {
         else { defaults.removeObject(forKey: "translation_source_lang") }
         if let tgt = tgtLang.code { defaults.set(tgt, forKey: "translation_target_lang") }
         else { defaults.removeObject(forKey: "translation_target_lang") }
+
+        let activeRawValues = Language.allCases.filter { activeLangFlags[$0] == true }.map(\.rawValue)
+        defaults.set(activeRawValues.isEmpty ? ["uk", "en"] : activeRawValues,
+                     forKey: "active_languages")
 
         defaults.synchronize()
     }
@@ -308,6 +325,82 @@ final class SettingsViewController: UIViewController {
             langSegment.bottomAnchor.constraint(equalTo: langCard.bottomAnchor, constant: -16),
             langSegment.heightAnchor.constraint(equalToConstant: 44),
         ])
+    }
+
+    private func setupActiveLangSection() {
+        contentStack.addArrangedSubview(sectionHeader("ACTIVE LANGUAGES"))
+        contentStack.addArrangedSubview(activeLangCard)
+        activeLangCard.backgroundColor = Color.surface
+        activeLangCard.layer.cornerRadius = 12
+
+        let hintLabel = UILabel()
+        hintLabel.numberOfLines = 0
+        hintLabel.font = .systemFont(ofSize: 13)
+        hintLabel.textColor = Color.secondaryText
+        hintLabel.text = "Choose which keyboards appear in the language-switch cycle. " +
+                         "Switching auto-enables smart diacritics for European languages."
+        hintLabel.translatesAutoresizingMaskIntoConstraints = false
+        activeLangCard.addSubview(hintLabel)
+
+        let stackView = UIStackView()
+        stackView.axis = .vertical
+        stackView.spacing = 0
+        stackView.translatesAutoresizingMaskIntoConstraints = false
+        activeLangCard.addSubview(stackView)
+
+        for lang in Language.allCases {
+            let rowView = UIView()
+            rowView.translatesAutoresizingMaskIntoConstraints = false
+
+            let toggle = UISwitch()
+            toggle.isOn = activeLangFlags[lang] ?? false
+            toggle.onTintColor = Color.accent
+            toggle.translatesAutoresizingMaskIntoConstraints = false
+            toggle.tag = Language.allCases.firstIndex(of: lang) ?? 0
+            toggle.addTarget(self, action: #selector(activeLangToggled(_:)), for: .valueChanged)
+            rowView.addSubview(toggle)
+
+            let label = UILabel()
+            label.text = lang.displayName
+            label.font = .systemFont(ofSize: 15)
+            label.textColor = Color.text
+            label.translatesAutoresizingMaskIntoConstraints = false
+            rowView.addSubview(label)
+
+            NSLayoutConstraint.activate([
+                rowView.heightAnchor.constraint(equalToConstant: 44),
+                toggle.leadingAnchor.constraint(equalTo: rowView.leadingAnchor, constant: 16),
+                toggle.centerYAnchor.constraint(equalTo: rowView.centerYAnchor),
+                label.leadingAnchor.constraint(equalTo: toggle.trailingAnchor, constant: 12),
+                label.centerYAnchor.constraint(equalTo: rowView.centerYAnchor),
+                label.trailingAnchor.constraint(equalTo: rowView.trailingAnchor, constant: -16),
+            ])
+            stackView.addArrangedSubview(rowView)
+
+            // Separator (except last)
+            if lang != Language.allCases.last {
+                let sep = separatorView()
+                stackView.addArrangedSubview(sep)
+                sep.heightAnchor.constraint(equalToConstant: 1).isActive = true
+            }
+        }
+
+        NSLayoutConstraint.activate([
+            hintLabel.leadingAnchor.constraint(equalTo: activeLangCard.leadingAnchor, constant: 16),
+            hintLabel.trailingAnchor.constraint(equalTo: activeLangCard.trailingAnchor, constant: -16),
+            hintLabel.topAnchor.constraint(equalTo: activeLangCard.topAnchor, constant: 14),
+
+            stackView.leadingAnchor.constraint(equalTo: activeLangCard.leadingAnchor),
+            stackView.trailingAnchor.constraint(equalTo: activeLangCard.trailingAnchor),
+            stackView.topAnchor.constraint(equalTo: hintLabel.bottomAnchor, constant: 12),
+            stackView.bottomAnchor.constraint(equalTo: activeLangCard.bottomAnchor, constant: -8),
+        ])
+    }
+
+    @objc private func activeLangToggled(_ sender: UISwitch) {
+        let lang = Language.allCases[sender.tag]
+        activeLangFlags[lang] = sender.isOn
+        savePreferences()
     }
 
     private func setupTranslationSection() {

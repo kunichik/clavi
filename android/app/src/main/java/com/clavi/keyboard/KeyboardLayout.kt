@@ -1,6 +1,33 @@
 package com.clavi.keyboard
 
-enum class Language { UK, EN, QUC }
+enum class Language {
+    UK, EN,
+    DE, FR, ES, PT, NO, ES_GT,  // v0.5 — Western European
+    QUC,                          // K'iche' Maya
+}
+
+/** BCP 47 diacritics locale to auto-enable when switching to this language. Null = none. */
+val Language.diacriticsLocale: String? get() = when (this) {
+    Language.DE    -> "de"
+    Language.FR    -> "fr"
+    Language.ES, Language.ES_GT -> "es"
+    Language.PT    -> "pt"
+    Language.NO    -> "no"
+    else           -> null
+}
+
+/** Short label shown on the language-switch key. */
+val Language.label: String get() = when (this) {
+    Language.UK    -> "УК"
+    Language.EN    -> "EN"
+    Language.DE    -> "DE"
+    Language.FR    -> "FR"
+    Language.ES    -> "ES"
+    Language.PT    -> "PT"
+    Language.NO    -> "NO"
+    Language.ES_GT -> "GT"
+    Language.QUC   -> "Q'"
+}
 
 data class Key(
     val label: String,
@@ -25,10 +52,35 @@ object KeyboardLayout {
 
     fun getLayout(language: Language, shifted: Boolean): List<Row> {
         return when (language) {
-            Language.UK  -> if (shifted) ukShifted else ukNormal
-            Language.EN  -> if (shifted) enShifted else enNormal
-            Language.QUC -> if (shifted) qucShifted else qucNormal
+            Language.UK    -> if (shifted) ukShifted else ukNormal
+            Language.EN    -> if (shifted) enShifted else enNormal
+            Language.QUC   -> if (shifted) qucShifted else qucNormal
+            // All Latin European languages share QWERTY + diacritics strip
+            else           -> latinQwertyLayout(language.label, shifted)
         }
+    }
+
+    // ── Factory: Latin QWERTY (DE, FR, ES, PT, NO, ES_GT) ──
+
+    private fun latinQwertyLayout(label: String, shifted: Boolean): List<Row> {
+        fun k(lower: String) = Key(if (shifted) lower.uppercase() else lower)
+        return listOf(
+            Row("qwertyuiop".map { k(it.toString()) }),
+            Row("asdfghjkl".map { k(it.toString()) }),
+            Row(
+                listOf(Key("\u2191", KEYCODE_SHIFT, 1.5f, true, "shift")) +
+                "zxcvbnm".map { k(it.toString()) } +
+                listOf(Key("\u232B", KEYCODE_BACKSPACE, 1.5f, true, "backspace"))
+            ),
+            Row(listOf(
+                Key("123", KEYCODE_SYMBOLS, 1.2f, true),
+                Key(label, KEYCODE_LANG_SWITCH, 1f, true),
+                Key(" ", KEYCODE_SPACE, 4.5f, true),
+                Key(".", code = '.'.code),
+                Key("Tr", KEYCODE_TRANSLIT, 1f, true),
+                Key("\u21B5", KEYCODE_ENTER, 1.3f, true, "enter"),
+            )),
+        )
     }
 
     // ── Ukrainian ЙЦУКЕН ──
@@ -141,7 +193,7 @@ object KeyboardLayout {
 
     // ── K'iche' (QUC) — ALMG standard orthography ──
     // Letters: a b' ch ch' e i j k k' m n o p q q' r s t t' tz tz' u w x xh y
-    // Digraphs ch/tz/xh as single keys; apostrophe for glottalization (b' k' q' t' ch' tz')
+    // Digraphs ch/tz/xh as single keys; apostrophe for glottalization
 
     private val qucNormal = listOf(
         Row(listOf(
@@ -154,9 +206,9 @@ object KeyboardLayout {
         )),
         Row(listOf(
             Key("\u2191", KEYCODE_SHIFT, 1.3f, true, "shift"),
-            Key("ch", isSpecial = false, widthMultiplier = 1.4f),
-            Key("tz", isSpecial = false, widthMultiplier = 1.4f),
-            Key("xh", isSpecial = false, widthMultiplier = 1.4f),
+            Key("ch", widthMultiplier = 1.4f),
+            Key("tz", widthMultiplier = 1.4f),
+            Key("xh", widthMultiplier = 1.4f),
             Key("z"), Key("x"), Key("b"), Key("n"), Key("m"),
             Key("\u232B", KEYCODE_BACKSPACE, 1.3f, true, "backspace"),
         )),
@@ -180,9 +232,9 @@ object KeyboardLayout {
         )),
         Row(listOf(
             Key("\u2191", KEYCODE_SHIFT, 1.3f, true, "shift"),
-            Key("Ch", isSpecial = false, widthMultiplier = 1.4f),
-            Key("Tz", isSpecial = false, widthMultiplier = 1.4f),
-            Key("Xh", isSpecial = false, widthMultiplier = 1.4f),
+            Key("Ch", widthMultiplier = 1.4f),
+            Key("Tz", widthMultiplier = 1.4f),
+            Key("Xh", widthMultiplier = 1.4f),
             Key("Z"), Key("X"), Key("B"), Key("N"), Key("M"),
             Key("\u232B", KEYCODE_BACKSPACE, 1.3f, true, "backspace"),
         )),

@@ -32,8 +32,13 @@ class ClaviIME : InputMethodService(),
     private var translitMode = false
     private var symbolsMode = false
 
-    // Active diacritics locale (null = diacritics off)
-    // Set this to e.g. "pt", "de", "fr" to enable the smart diacritics strip
+    // Language rotation: only cycle through languages the user enabled in Settings
+    private var activeLanguages: List<Language> = listOf(Language.UK, Language.EN)
+    private var currentLangIndex: Int = 0
+
+    // Diacritics: userLocale = value from Settings; diacriticsLocale = current effective value
+    // (may be auto-set when switching to a European language)
+    private var userDiacriticsLocale: String? = null
     private var diacriticsLocale: String? = null
 
     // Translation engine — null when translation is disabled in settings
@@ -49,10 +54,13 @@ class ClaviIME : InputMethodService(),
 
         // Load preferences
         val prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE)
-        diacriticsLocale = prefs.getString(SettingsActivity.PREF_DIACRITICS_LOCALE, null)
+        userDiacriticsLocale = prefs.getString(SettingsActivity.PREF_DIACRITICS_LOCALE, null)
+        diacriticsLocale = userDiacriticsLocale
         val savedLang = prefs.getString(SettingsActivity.PREF_DEFAULT_LANGUAGE, Language.UK.name)
         currentLanguage = Language.entries.firstOrNull { it.name == savedLang } ?: Language.UK
         keyboardView.hapticEnabled = prefs.getBoolean(SettingsActivity.PREF_HAPTIC, true)
+        activeLanguages = SettingsActivity.loadActiveLanguages(prefs)
+        currentLangIndex = activeLanguages.indexOf(currentLanguage).coerceAtLeast(0)
         val transSrc = prefs.getString(SettingsActivity.PREF_TRANSLATION_SOURCE, null)
         val transTgt = prefs.getString(SettingsActivity.PREF_TRANSLATION_TARGET, null)
         translationEngine = if (transSrc != null && transTgt != null)
@@ -224,6 +232,7 @@ class ClaviIME : InputMethodService(),
 
     /** Call this to enable/disable the diacritics strip. locale = "pt", "de", "fr", etc. or null to disable. */
     fun setDiacriticsLocale(locale: String?) {
+        userDiacriticsLocale = locale
         diacriticsLocale = locale
         clearDiacritics()
     }
@@ -274,16 +283,17 @@ class ClaviIME : InputMethodService(),
 
     private fun handleLanguageSwitch() {
         flushTranslitBuffer(force = true)
-        currentLanguage = when (currentLanguage) {
-            Language.UK  -> Language.EN
-            Language.EN  -> Language.QUC
-            Language.QUC -> Language.UK
-        }
-        shifted = false
-        capsLock = false
-        symbolsMode = false
-        if (translitMode && currentLanguage == Language.QUC) {
-            translitMode = false  // translit not applicable for K'iche'
+        currentLangIndex = (currentLangIndex + 1) % activeLanguages.size
+        currentLanguage = activeLanguages[currentLangIndex]
+
+        // Auto-enable the appropriate diacritics locale for European languages,
+        // restore user's Setting when switching back to UK/EN/QUC
+        diacriticsLocale = currentLanguage.diacriticsLocale ?: userDiacriticsLocale
+
+        shifted = false; capsLock = false; symbolsMode = false
+        // Translit only applies when typing Latin to get Ukrainian (UK target, EN source)
+        if (translitMode && currentLanguage != Language.EN) {
+            translitMode = false
         }
         updateKeyboardLayout()
     }
