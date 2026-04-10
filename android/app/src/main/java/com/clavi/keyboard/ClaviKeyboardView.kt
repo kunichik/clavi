@@ -35,6 +35,7 @@ class ClaviKeyboardView @JvmOverloads constructor(
         fun onClipTap(index: Int)
         fun onClipLongPress(index: Int)
         fun onStripClear()
+        fun onDiacriticTap(variant: String)  // user picked a diacritic variant
     }
 
     var listener: OnKeyListener? = null
@@ -44,7 +45,15 @@ class ClaviKeyboardView @JvmOverloads constructor(
 
     // Clipboard strip data — set from ClaviIME
     var clipItems: List<String> = emptyList()
-        set(value) { field = value; invalidate() }
+        set(value) { field = value; if (diacriticItems.isEmpty()) invalidate() }
+
+    // Diacritics suggestion strip — overrides clipboard strip when non-empty
+    // Items are diacritic variants to show (e.g. ["ã","â","á","à","a"])
+    var diacriticItems: List<String> = emptyList()
+        set(value) { field = value; requestLayout(); invalidate() }
+
+    // Mode for the strip: CLIPBOARD or DIACRITICS
+    private val stripShowsDiacritics get() = diacriticItems.isNotEmpty()
 
     private var rows: List<Row> = emptyList()
     private val keyRects = mutableListOf<Pair<RectF, Key>>()
@@ -165,8 +174,10 @@ class ClaviKeyboardView @JvmOverloads constructor(
 
         val density = resources.displayMetrics.density
 
-        // ── Clipboard strip ──
-        if (clipItems.isNotEmpty()) {
+        // ── Strip (diacritics takes priority over clipboard) ──
+        if (stripShowsDiacritics) {
+            drawDiacriticsStrip(canvas, density)
+        } else if (clipItems.isNotEmpty()) {
             drawStrip(canvas, density)
         }
 
@@ -222,6 +233,72 @@ class ClaviKeyboardView @JvmOverloads constructor(
         clearButtonRect = clearRect
         canvas.drawRoundRect(clearRect, chipR, chipR, chipBgPaint)
         canvas.drawText("\u00D7", clearRect.centerX(), chipBottom - chipPaddingV * density * 0.8f, clearBtnPaint)
+    }
+
+    private fun drawDiacriticsStrip(canvas: Canvas, density: Float) {
+        chipRects.clear()
+        clearButtonRect = RectF()  // no clear button in diacritics mode
+
+        val sh = stripHeight
+        // Slightly different background to signal "suggestion mode"
+        val diacBgPaint = Paint().apply { color = Color.argb(255, 30, 50, 60) }
+        canvas.drawRect(0f, 0f, width.toFloat(), sh, diacBgPaint)
+
+        val chipH = sh - chipPaddingV * density * 2
+        val chipTop = chipPaddingV * density
+        val chipBottom = chipTop + chipH
+        val chipR = chipRadius * density
+        val textSize = 18f * density   // larger text for diacritics — letters, not truncated text
+        chipTextPaint.textSize = textSize
+
+        // Label on the left
+        val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(140, 255, 255, 255)
+            textSize = 11f * density
+            textAlign = Paint.Align.LEFT
+        }
+        var x = 8f * density
+        canvas.drawText("díacr:", x, chipBottom - chipPaddingV * density * 0.5f, labelPaint)
+        x += labelPaint.measureText("díacr:") + 8f * density
+
+        // Diacritic variant chips
+        diacriticItems.forEachIndexed { i, variant ->
+            val textW = chipTextPaint.measureText(variant)
+            val chipW = (textW + chipPaddingH * density * 2).coerceAtLeast(40f * density)
+            if (x + chipW > width.toFloat()) return@forEachIndexed
+
+            val rect = RectF(x, chipTop, x + chipW, chipBottom)
+            chipRects.add(rect)
+
+            // Highlight first item (most common) and last (base letter, no diacritic)
+            val isFirst = i == 0
+            val isBase = i == diacriticItems.lastIndex
+            val bgColor = when {
+                isFirst -> Color.argb(200, 31, 120, 160)   // teal — most common
+                isBase  -> Color.argb(100, 80, 80, 80)     // grey — base (no diacritic)
+                else    -> chipBgColor
+            }
+            chipBgPaint.color = bgColor
+            if (pressedChipIndex == i) chipBgPaint.color = keyBgPressedColor
+
+            canvas.drawRoundRect(rect, chipR, chipR, chipBgPaint)
+            chipTextPaint.textAlign = Paint.Align.CENTER
+            canvas.drawText(variant, rect.centerX(), chipBottom - chipPaddingV * density * 0.8f, chipTextPaint)
+            chipTextPaint.textAlign = Paint.Align.LEFT
+
+            x += chipW + chipSpacing * density
+        }
+
+        // Hint on right side
+        val hintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(100, 255, 255, 255)
+            textSize = 10f * density
+            textAlign = Paint.Align.RIGHT
+        }
+        canvas.drawText("tap to insert", width - 8f * density, chipBottom - chipPaddingV * density * 0.5f, hintPaint)
+
+        // Reset chipBgPaint color
+        chipBgPaint.color = chipBgColor
     }
 
     private fun drawKeys(canvas: Canvas, density: Float, topOffset: Float) {
@@ -297,14 +374,16 @@ class ClaviKeyboardView @JvmOverloads constructor(
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
                 // Check strip first
-                if (y < stripHeight && clipItems.isNotEmpty()) {
-                    if (clearButtonRect.contains(x, y)) return true
+                if (y < stripHeight && (stripShowsDiacritics || clipItems.isNotEmpty())) {
+                    if (!stripShowsDiacritics && clearButtonRect.contains(x, y)) return true
                     val idx = chipRects.indexOfFirst { it.contains(x, y) }
                     if (idx >= 0) {
                         pressedChipIndex = idx
                         longPressChipIndex = idx
                         longPressPending = true
-                        longPressHandler.postDelayed(longPressRunnable, 500)
+                        if (!stripShowsDiacritics) {
+                            longPressHandler.postDelayed(longPressRunnable, 500)
+                        }
                         invalidate()
                         performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         return true
@@ -325,7 +404,12 @@ class ClaviKeyboardView @JvmOverloads constructor(
                 if (pressedChipIndex >= 0) {
                     longPressHandler.removeCallbacks(longPressRunnable)
                     if (longPressPending) {
-                        stripListener?.onClipTap(pressedChipIndex)
+                        if (stripShowsDiacritics) {
+                            val variant = diacriticItems.getOrNull(pressedChipIndex)
+                            if (variant != null) stripListener?.onDiacriticTap(variant)
+                        } else {
+                            stripListener?.onClipTap(pressedChipIndex)
+                        }
                     }
                     pressedChipIndex = -1
                     longPressPending = false

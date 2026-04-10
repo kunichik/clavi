@@ -29,6 +29,10 @@ class ClaviIME : InputMethodService(),
     private var translitMode = false
     private var symbolsMode = false
 
+    // Active diacritics locale (null = diacritics off)
+    // Set this to e.g. "pt", "de", "fr" to enable the smart diacritics strip
+    private var diacriticsLocale: String? = null
+
     private val translitBuffer = StringBuilder()
 
     // ── Lifecycle ──
@@ -88,6 +92,14 @@ class ClaviIME : InputMethodService(),
         clipboardHistory.clear()
     }
 
+    override fun onDiacriticTap(variant: String) {
+        val ic = currentInputConnection ?: return
+        // Delete the last character (base letter) and replace with diacritic variant
+        ic.deleteSurroundingText(1, 0)
+        ic.commitText(variant, 1)
+        clearDiacritics()
+    }
+
     // ── ClaviKeyboardView.OnKeyListener ──
 
     override fun onKey(key: Key) {
@@ -111,14 +123,38 @@ class ClaviIME : InputMethodService(),
         if (translitMode && currentLanguage == Language.EN) {
             translitBuffer.append(text)
             flushTranslitBuffer(force = false)
+            clearDiacritics()
         } else {
             ic.commitText(text, 1)
+            // Show diacritics strip if this letter has variants in the active locale
+            showDiacriticsIfNeeded(text)
         }
 
         if (shifted && !capsLock) {
             shifted = false
             updateKeyboardLayout()
         }
+    }
+
+    private fun showDiacriticsIfNeeded(text: String) {
+        val locale = diacriticsLocale ?: return
+        val char = text.singleOrNull() ?: run { clearDiacritics(); return }
+        val variants = DiacriticsEngine.suggest(char, locale)
+        if (variants.size > 1) {  // size=1 means only the base letter → skip
+            keyboardView.diacriticItems = variants
+        } else {
+            clearDiacritics()
+        }
+    }
+
+    private fun clearDiacritics() {
+        if (::keyboardView.isInitialized) keyboardView.diacriticItems = emptyList()
+    }
+
+    /** Call this to enable/disable the diacritics strip. locale = "pt", "de", "fr", etc. or null to disable. */
+    fun setDiacriticsLocale(locale: String?) {
+        diacriticsLocale = locale
+        clearDiacritics()
     }
 
     private fun flushTranslitBuffer(force: Boolean) {
@@ -139,6 +175,7 @@ class ClaviIME : InputMethodService(),
 
     private fun handleBackspace() {
         val ic = currentInputConnection ?: return
+        clearDiacritics()
         if (translitBuffer.isNotEmpty()) {
             translitBuffer.deleteCharAt(translitBuffer.length - 1)
         } else {
