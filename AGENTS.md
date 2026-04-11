@@ -20,7 +20,6 @@ keyboard with translit mode, smart diacritics, clipboard history, and local text
 
 | Rule | Detail |
 |------|--------|
-| **Russian is banned** | No Russian keyboard map, dictionary, locale `"ru"`, or any Russian-language content. `pack_loader.cpp` must hardcode rejection. Not configurable. |
 | **No cloud, no telemetry** | Everything runs locally. No network calls from core logic. No analytics. |
 | **No accounts** | Zero sign-up, zero login, zero tracking. |
 | **Privacy first** | Keystrokes never leave the device. No content logging. |
@@ -175,7 +174,6 @@ Digraph buffer: don't commit `s` immediately — it might be the start of `sh` o
 
 ## What NOT to Do
 
-- Do NOT add Russian keyboard layout or Russian words to any dictionary
 - Do NOT add network calls to `ClaviIME`, `ClaviKeyboardView`, or any engine class
 - Do NOT use `android.inputmethodservice.Keyboard` (deprecated)
 - Do NOT use `RecyclerView` in the keyboard view — Canvas only for performance
@@ -211,7 +209,7 @@ Digraph buffer: don't commit `s` immediately — it might be the start of `sh` o
 - **Kotlin**: official style guide, `ktlint` — 4-space indent, no semicolons
 - **Swift**: SwiftLint — 4-space indent
 - **C++**: Google style, clang-format, 100-col limit, C++20, no exceptions in hot path
-- **No**: YAML (use TOML), Russian locale, cloud calls, heavy dependencies
+- **No**: YAML (use TOML), cloud calls, heavy dependencies
 
 ---
 
@@ -221,7 +219,6 @@ Before submitting a PR:
 - [ ] `./gradlew assembleDebug` passes (Android)
 - [ ] If touching translit: verify KMU 2010 table is unchanged
 - [ ] If touching Android strip: verify fix > diacritics > clipboard priority
-- [ ] If adding a language pack: no `"ru"` locale, CC BY-SA 4.0 license
+- [ ] If adding a language pack: CC BY-SA 4.0 license
 - [ ] If touching `TextFixEngine`: only add high-confidence, unambiguous fixes
 - [ ] No network calls added
-- [ ] No Russian content added

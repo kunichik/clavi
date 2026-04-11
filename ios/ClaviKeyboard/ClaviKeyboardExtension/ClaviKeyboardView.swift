@@ -537,7 +537,7 @@ class ClaviKeyboardView: UIView {
     }
 
     private func keyFont(for key: KeyDef) -> UIFont {
-        key.isSpecial && key.label.count > 1
+        key.isSpecial && key.label.count > 3
             ? .systemFont(ofSize: 13, weight: .medium)
             : .systemFont(ofSize: 20, weight: .regular)
     }

@@ -8,13 +8,8 @@ Cross-platform keyboard layout switcher and language bridge.
 
 Primary non-English target: **Ukrainian**. Secondary: PT, DE, FR, NO, ES and minority languages.
 
-## Hardcoded Restrictions
+## Non-Negotiable Rules
 
-```
-BLOCKED_LOCALES = ["ru"]  // Russian — permanent ban, not configurable
-```
-
-No Russian keyboard map, no Russian dictionary, no `"ru"` locale anywhere.
 No network access from keyboard/engine code.
 No telemetry, no cloud, no user accounts.
 

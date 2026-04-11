@@ -16,14 +16,11 @@ and resorts to phonetic transliteration like "pryvit" instead of "привіт".
 
 ## Hard Rules — Never Violate
 
-1. **Russian language is permanently banned.** No Russian keyboard map, no Russian dictionary,
-   no Russian in any language pack. This is hardcoded in core, not a config option. Any
-   `pack_loader` must reject locale `"ru"` unconditionally.
-2. **No telemetry, no cloud.** Keystrokes never leave the machine.
+1. **No telemetry, no cloud.** Keystrokes never leave the machine.
    **Sync account is optional.** If the user opts in, settings are synced via E2E-encrypted
    cloud (zero-knowledge). Default: local-only. Account has no access to typed content —
    only config (language packs, theme, exclusions).
-3. **Privacy first.** Keystrokes never leave the machine. No logging of typed content.
+2. **Privacy first.** Keystrokes never leave the machine. No logging of typed content.
 
 ---
 

@@ -7,15 +7,6 @@ with Ukrainian transliteration, smart diacritics, clipboard history, and local t
 
 ## Critical Rules
 
-### Russian Language — HARD BAN
-Never suggest, generate, or accept any code that:
-- Adds `"ru"` as a supported locale
-- Includes Russian keyboard layout
-- Adds Russian words to any dictionary
-- Contains Russian-language UI strings
-
-This is hardcoded policy, not configuration.
-
 ### No Network Calls in Keyboard Code
 `ClaviIME`, `ClaviKeyboardView`, `TextFixEngine`, `DiacriticsEngine`, `TranslitEngine`,
 `ClipboardHistory` — none of these may make HTTP requests or any I/O beyond local storage.

@@ -263,7 +263,7 @@ class SettingsActivity : AppCompatActivity() {
         val savedSrc = prefs.getString(PREF_TRANSLATION_SOURCE, null)
         val savedTgt = prefs.getString(PREF_TRANSLATION_TARGET, null)
         val srcIndex = TRANSLATION_LANGUAGES.indexOfFirst { it.second == savedSrc }.coerceAtLeast(0)
-        val tgtIndex = TRANSLATION_LANGUAGES.indexOfFirst { it.second == savedTgt }.coerceAtLeast(1)
+        val tgtIndex = TRANSLATION_LANGUAGES.indexOfFirst { it.second == savedTgt }.coerceAtLeast(0)
 
         layout.addView(TextView(this).apply {
             text = "Source language"
