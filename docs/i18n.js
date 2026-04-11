@@ -8,7 +8,7 @@ const TRANSLATIONS = {
 
     badge_hero:     "Open source · GPLv3 · No telemetry",
     hero_h1:        "Type in any language.<br><span class=\"accent\">Clavi handles the rest.</span>",
-    hero_sub:       "Type <code>ghbdsn</code> — get <code class=\"uk\">привіт</code>. Type <code>pryvit</code> — still <code class=\"uk\">привіт</code>. Wrong layout, phonetic input, smart diacritics — corrected silently, across every app, zero cloud.",
+    hero_sub:       "Type <code>cafe</code> — get <code>café</code>. Type <code>naive</code> — get <code>naïve</code>. Smart diacritics, wrong layout, phonetic input — corrected silently, across every app, zero cloud.",
     btn_download:   "Download free",
     btn_github:     "View on GitHub",
     hero_note:      "Linux · macOS · Windows · Android · iOS",
@@ -186,7 +186,7 @@ const TRANSLATIONS = {
 
     badge_hero:     "Código abierto · GPLv3 · Sin telemetría",
     hero_h1:        "Escribe en cualquier idioma.<br><span class=\"accent\">Clavi se encarga del resto.</span>",
-    hero_sub:       "Escribes <code>ghbdsn</code> — obtienes <code class=\"uk\">привіт</code>. Escribes <code>pryvit</code> — igual, <code class=\"uk\">привіт</code>. Distribución incorrecta, entrada fonética, diacríticos — corregido en silencio, en cualquier app, sin nube.",
+    hero_sub:       "Escribes <code>manana</code> — obtienes <code>mañana</code>. Escribes <code>nino</code> — claro, <code>niño</code>. Diacríticos inteligentes — corregidos en silencio, en cualquier app, sin nube.",
     btn_download:   "Descargar gratis",
     btn_github:     "Ver en GitHub",
     hero_note:      "Linux · macOS · Windows · Android · iOS",
