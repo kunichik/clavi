@@ -33,6 +33,7 @@ class KeyboardViewController: UIInputViewController {
     private var diacriticsLocale: String? = nil
 
     private var translationEngine: TranslationEngine? = nil
+    private var predictionEngine = WordPredictionEngine()
 
     // MARK: - Lifecycle
 
@@ -56,6 +57,7 @@ class KeyboardViewController: UIInputViewController {
         if isPassword {
             keyboardView.clipItems = []
             keyboardView.translationSuggestion = nil
+            keyboardView.predictionItems = []
             if translitMode { handleTranslitToggle() }
         } else {
             clipboardHistory.refresh()
@@ -138,6 +140,7 @@ class KeyboardViewController: UIInputViewController {
             flushTranslitBuffer(force: false)
             keyboardView.diacriticItems = []
             keyboardView.fixSuggestion = nil
+            keyboardView.predictionItems = []
         } else {
             textDocumentProxy.insertText(text)
             showDiacriticsIfNeeded(text)
@@ -151,12 +154,16 @@ class KeyboardViewController: UIInputViewController {
                     translationEngine?.translate(before) { [weak self] suggestion in
                         self?.keyboardView.translationSuggestion = suggestion
                     }
+                    // Word predictions (shown when translation strip also not showing)
+                    keyboardView.predictionItems = predictionEngine.predict(before, language: currentLanguage)
                 } else {
                     keyboardView.translationSuggestion = nil
+                    keyboardView.predictionItems = []
                 }
             } else {
                 keyboardView.fixSuggestion = nil
                 keyboardView.translationSuggestion = nil
+                keyboardView.predictionItems = []
             }
         }
 
@@ -193,6 +200,7 @@ class KeyboardViewController: UIInputViewController {
         keyboardView.diacriticItems = []
         keyboardView.fixSuggestion = nil
         keyboardView.translationSuggestion = nil
+        keyboardView.predictionItems = []
         if !translitBuffer.isEmpty {
             translitBuffer = String(translitBuffer.dropLast())
         } else {
@@ -297,6 +305,14 @@ extension KeyboardViewController: ClaviKeyboardViewDelegate {
 
     func didDismissTranslation() {
         keyboardView.translationSuggestion = nil
+    }
+
+    func didTapPrediction(_ word: String) {
+        textDocumentProxy.insertText(word + " ")
+        // Re-predict based on word just tapped
+        let before = (textDocumentProxy.documentContextBeforeInput ?? "") + word + " "
+        keyboardView.predictionItems = predictionEngine.predict(before, language: currentLanguage)
+        if shifted && !capsLock { shifted = false; updateLayout() }
     }
 
     func didTapNextKeyboard() {

@@ -44,6 +44,9 @@ class ClaviIME : InputMethodService(),
     // Translation engine — null when translation is disabled in settings
     private var translationEngine: TranslationEngine? = null
 
+    // Word prediction engine — always available for EN and UK
+    private lateinit var predictionEngine: WordPredictionEngine
+
     private val translitBuffer = StringBuilder()
 
     // ── Lifecycle ──
@@ -65,6 +68,8 @@ class ClaviIME : InputMethodService(),
         val transTgt = prefs.getString(SettingsActivity.PREF_TRANSLATION_TARGET, null)
         translationEngine = if (transSrc != null && transTgt != null)
             TranslationEngine(transSrc, transTgt, this) else null
+
+        predictionEngine = WordPredictionEngine(this)
 
         keyboardView = ClaviKeyboardView(this)
         keyboardView.listener = this
@@ -90,6 +95,7 @@ class ClaviIME : InputMethodService(),
         if (isPassword) {
             keyboardView.clipItems = emptyList()
             keyboardView.translationSuggestion = null
+            keyboardView.predictionItems = emptyList()
             if (translitMode) handleTranslitToggle()
         } else {
             // Refresh strip in case clipboard changed while keyboard was hidden
@@ -158,6 +164,14 @@ class ClaviIME : InputMethodService(),
         keyboardView.translationSuggestion = null
     }
 
+    override fun onPredictionTap(word: String) {
+        val ic = currentInputConnection ?: return
+        ic.commitText("$word ", 1)
+        // Predict the next word immediately based on what was just tapped
+        updatePredictions("$word ")
+        if (shifted && !capsLock) { shifted = false; updateKeyboardLayout() }
+    }
+
     // ── ClaviKeyboardView.OnKeyListener ──
 
     override fun onKey(key: Key) {
@@ -183,16 +197,16 @@ class ClaviIME : InputMethodService(),
             flushTranslitBuffer(force = false)
             clearDiacritics()
             keyboardView.fixSuggestion = null
+            keyboardView.predictionItems = emptyList()
         } else {
             ic.commitText(text, 1)
             // Show diacritics strip if this letter has variants in the active locale
             showDiacriticsIfNeeded(text)
-            // After space or newline: run fix + translation analysis
+            // After space or newline: run fix + translation + prediction
             if (text == " " || text == "\n") {
                 val textBefore = ic.getTextBeforeCursor(200, 0)?.toString() ?: ""
                 val fix = TextFixEngine.analyze(textBefore)
                 keyboardView.fixSuggestion = fix
-                // Translation only when fix strip is not showing
                 if (fix == null) {
                     keyboardView.translationSuggestion = null
                     translationEngine?.translate(textBefore) { suggestion ->
@@ -200,12 +214,16 @@ class ClaviIME : InputMethodService(),
                             keyboardView.translationSuggestion = suggestion
                         }
                     }
+                    // Show word predictions (shown when translation is also null)
+                    updatePredictions(textBefore)
                 } else {
                     keyboardView.translationSuggestion = null
+                    keyboardView.predictionItems = emptyList()
                 }
             } else {
                 keyboardView.fixSuggestion = null
                 keyboardView.translationSuggestion = null
+                keyboardView.predictionItems = emptyList()
             }
         }
 
@@ -253,11 +271,17 @@ class ClaviIME : InputMethodService(),
         }
     }
 
+    private fun updatePredictions(textBefore: String) {
+        val predictions = predictionEngine.predict(textBefore, currentLanguage)
+        keyboardView.predictionItems = predictions
+    }
+
     private fun handleBackspace() {
         val ic = currentInputConnection ?: return
         clearDiacritics()
         keyboardView.fixSuggestion = null
         keyboardView.translationSuggestion = null
+        keyboardView.predictionItems = emptyList()
         if (translitBuffer.isNotEmpty()) {
             translitBuffer.deleteCharAt(translitBuffer.length - 1)
         } else {
