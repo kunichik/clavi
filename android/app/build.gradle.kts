@@ -15,6 +15,21 @@ android {
         versionName = "0.1.0"
     }
 
+    signingConfigs {
+        // Debug signing uses the default Android debug keystore automatically.
+        // For release: set env vars KEYSTORE_PATH, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD
+        // or generate a keystore via: Build → Generate Signed Bundle/APK in Android Studio.
+        create("release") {
+            val keystorePath = System.getenv("KEYSTORE_PATH")
+            if (keystorePath != null) {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -23,6 +38,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            val releaseConfig = signingConfigs.getByName("release")
+            if (releaseConfig.storeFile != null) {
+                signingConfig = releaseConfig
+            }
         }
     }
 

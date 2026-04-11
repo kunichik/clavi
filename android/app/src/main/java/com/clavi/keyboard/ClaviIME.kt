@@ -65,7 +65,6 @@ class ClaviIME : InputMethodService(),
         diacriticsLocale = userDiacriticsLocale
         val savedLang = prefs.getString(SettingsActivity.PREF_DEFAULT_LANGUAGE, Language.UK.name)
         currentLanguage = Language.entries.firstOrNull { it.name == savedLang } ?: Language.UK
-        keyboardView.hapticEnabled = prefs.getBoolean(SettingsActivity.PREF_HAPTIC, true)
         activeLanguages = SettingsActivity.loadActiveLanguages(prefs)
         currentLangIndex = activeLanguages.indexOf(currentLanguage).coerceAtLeast(0)
         val transSrc = prefs.getString(SettingsActivity.PREF_TRANSLATION_SOURCE, null)
@@ -75,7 +74,9 @@ class ClaviIME : InputMethodService(),
 
         predictionEngine = WordPredictionEngine(this)
 
+        // Create keyboardView first, then apply prefs that reference it
         keyboardView = ClaviKeyboardView(this)
+        keyboardView.hapticEnabled = prefs.getBoolean(SettingsActivity.PREF_HAPTIC, true)
         keyboardView.listener = this
         keyboardView.stripListener = this
         updateKeyboardLayout()
