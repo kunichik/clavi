@@ -8,7 +8,7 @@ const TRANSLATIONS = {
 
     badge_hero:     "Open source · GPLv3 · No telemetry",
     hero_h1:        "Type in any language.<br><span class=\"accent\">Clavi handles the rest.</span>",
-    hero_sub:       "You type <code>ghbdsn</code> with English layout active — Clavi silently corrects it to <code class=\"uk\">привіт</code>. Instantly. No copy-paste. No retyping. No accounts.",
+    hero_sub:       "Type <code>ghbdsn</code> — get <code class=\"uk\">привіт</code>. Type <code>pryvit</code> — still <code class=\"uk\">привіт</code>. Wrong layout, phonetic input, smart diacritics — corrected silently, across every app, zero cloud.",
     btn_download:   "Download free",
     btn_github:     "View on GitHub",
     hero_note:      "Linux · macOS · Windows · Android · iOS",
@@ -19,7 +19,7 @@ const TRANSLATIONS = {
     demo_good:      "auto-fixed ✓",
 
     feat_h2:        "Built for people who type in two languages",
-    feat_sub:       "Ukrainian diaspora. Bilingual teams. Developers who switch constantly.",
+    feat_sub:       "Bilingual professionals. Developers who switch layouts constantly. Anyone tired of retyping.",
     feat1_h:        "Auto-detection",
     feat1_p:        "3-layer engine: dictionary lookup → n-gram statistics → on-device LLM. Detects wrong layout in under 1 ms for 95% of cases. Never guesses on short words.",
     feat2_h:        "Translit mode",
@@ -84,7 +84,7 @@ const TRANSLATIONS = {
 
     badge_hero:     "Відкритий код · GPLv3 · Без телеметрії",
     hero_h1:        "Пишіть будь-якою мовою.<br><span class=\"accent\">Clavi зробить решту.</span>",
-    hero_sub:       "Ви пишете <code>ghbdsn</code> з увімкненою англійською розкладкою — Clavi тихо виправляє на <code class=\"uk\">привіт</code>. Миттєво. Без копіювання. Без переписування. Без акаунтів.",
+    hero_sub:       "Пишете <code>ghbdsn</code> — отримуєте <code class=\"uk\">привіт</code>. Пишете <code>pryvit</code> — теж <code class=\"uk\">привіт</code>. Неправильна розкладка, фонетичний ввід, діакритики — виправляється тихо, у будь-якому застосунку, без хмари.",
     btn_download:   "Завантажити безкоштовно",
     btn_github:     "GitHub",
     hero_note:      "Linux · macOS · Windows · Android · iOS",
@@ -95,7 +95,7 @@ const TRANSLATIONS = {
     demo_good:      "автовиправлено ✓",
 
     feat_h2:        "Для тих, хто пише двома мовами",
-    feat_sub:       "Українська діаспора. Двомовні команди. Розробники, які постійно перемикаються.",
+    feat_sub:       "Двомовні фахівці. Розробники, які постійно перемикають розкладку. Всі, кому набридло передруковувати.",
     feat1_h:        "Автовизначення",
     feat1_p:        "3-рівневий рушій: словниковий пошук → n-gram статистика → локальна LLM. Визначає неправильну розкладку за &lt;1 мс у 95% випадків. Ніколи не гадає на коротких словах.",
     feat2_h:        "Режим транслітерації",
@@ -160,7 +160,7 @@ const TRANSLATIONS = {
 
     badge_hero:     "Código abierto · GPLv3 · Sin telemetría",
     hero_h1:        "Escribe en cualquier idioma.<br><span class=\"accent\">Clavi se encarga del resto.</span>",
-    hero_sub:       "Escribes <code>ghbdsn</code> con el teclado en inglés activo — Clavi lo corrige silenciosamente a <code class=\"uk\">привіт</code>. Al instante. Sin copiar. Sin reescribir. Sin cuentas.",
+    hero_sub:       "Escribes <code>ghbdsn</code> — obtienes <code class=\"uk\">привіт</code>. Escribes <code>pryvit</code> — igual, <code class=\"uk\">привіт</code>. Distribución incorrecta, entrada fonética, diacríticos — corregido en silencio, en cualquier app, sin nube.",
     btn_download:   "Descargar gratis",
     btn_github:     "Ver en GitHub",
     hero_note:      "Linux · macOS · Windows · Android · iOS",
@@ -171,7 +171,7 @@ const TRANSLATIONS = {
     demo_good:      "corregido automáticamente ✓",
 
     feat_h2:        "Para quienes escriben en dos idiomas",
-    feat_sub:       "Diáspora ucraniana. Equipos bilingües. Desarrolladores que cambian constantemente.",
+    feat_sub:       "Profesionales bilingües. Desarrolladores que cambian de distribución constantemente. Todos los que están hartos de reescribir.",
     feat1_h:        "Detección automática",
     feat1_p:        "Motor de 3 capas: búsqueda en diccionario → estadísticas n-gram → LLM local. Detecta el teclado incorrecto en &lt;1 ms en el 95% de los casos.",
     feat2_h:        "Modo transliteración",
