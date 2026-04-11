@@ -46,6 +46,28 @@ final class SettingsViewController: UIViewController {
     private var selectedDiacriticsIndex: Int = 0  // default: Off
     private var defaultLanguageIsUK: Bool = true  // default: Ukrainian
 
+    private struct TranslationLang {
+        let displayName: String
+        let code: String?   // nil = Off
+    }
+    private let translationLangs: [TranslationLang] = [
+        TranslationLang(displayName: "Off",               code: nil),
+        TranslationLang(displayName: "English (en)",      code: "en"),
+        TranslationLang(displayName: "Ukrainian (uk)",    code: "uk"),
+        TranslationLang(displayName: "German (de)",       code: "de"),
+        TranslationLang(displayName: "French (fr)",       code: "fr"),
+        TranslationLang(displayName: "Spanish (es)",      code: "es"),
+        TranslationLang(displayName: "Portuguese (pt)",   code: "pt"),
+        TranslationLang(displayName: "Norwegian (no)",    code: "no"),
+        TranslationLang(displayName: "Chinese (zh)",      code: "zh"),
+        TranslationLang(displayName: "Japanese (ja)",     code: "ja"),
+    ]
+    private var selectedTranslSrcIndex: Int = 0   // default: Off
+    private var selectedTranslTgtIndex: Int = 2   // default: Ukrainian
+
+    // Active Languages — which keyboards appear in the switch cycle
+    private var activeLangFlags: [Language: Bool] = [.uk: true, .en: true]
+
     private let defaults: UserDefaults = {
         UserDefaults(suiteName: "group.com.clavi.keyboard") ?? .standard
     }()
@@ -68,6 +90,14 @@ final class SettingsViewController: UIViewController {
     private let langCard        = UIView()
     private let langSegment     = UISegmentedControl(items: ["Ukrainian", "English"])
 
+    // Section 4 — Active Languages
+    private let activeLangCard  = UIView()
+
+    // Section 5 — Translation
+    private let translCard      = UIView()
+    private let translSrcPicker = UIPickerView()
+    private let translTgtPicker = UIPickerView()
+
     // MARK: - Lifecycle
 
     override func viewDidLoad() {
@@ -85,6 +115,8 @@ final class SettingsViewController: UIViewController {
         setupSetupSection()
         setupDiacriticsSection()
         setupLanguageSection()
+        setupActiveLangSection()
+        setupTranslationSection()
         applyUI()
     }
 
@@ -101,6 +133,17 @@ final class SettingsViewController: UIViewController {
 
         let savedLang = defaults.string(forKey: "default_language") ?? "UK"
         defaultLanguageIsUK = (savedLang == "UK")
+
+        let savedSrc = defaults.string(forKey: "translation_source_lang")
+        let savedTgt = defaults.string(forKey: "translation_target_lang")
+        selectedTranslSrcIndex = translationLangs.firstIndex(where: { $0.code == savedSrc }) ?? 0
+        selectedTranslTgtIndex = translationLangs.firstIndex(where: { $0.code == savedTgt }) ?? 2
+
+        let savedActive = (defaults.array(forKey: "active_languages") as? [String])
+            ?? ["uk", "en"]
+        for lang in Language.allCases {
+            activeLangFlags[lang] = savedActive.contains(lang.rawValue)
+        }
     }
 
     private func savePreferences() {
@@ -112,6 +155,18 @@ final class SettingsViewController: UIViewController {
         }
 
         defaults.set(defaultLanguageIsUK ? "UK" : "EN", forKey: "default_language")
+
+        let srcLang = translationLangs[selectedTranslSrcIndex]
+        let tgtLang = translationLangs[selectedTranslTgtIndex]
+        if let src = srcLang.code { defaults.set(src, forKey: "translation_source_lang") }
+        else { defaults.removeObject(forKey: "translation_source_lang") }
+        if let tgt = tgtLang.code { defaults.set(tgt, forKey: "translation_target_lang") }
+        else { defaults.removeObject(forKey: "translation_target_lang") }
+
+        let activeRawValues = Language.allCases.filter { activeLangFlags[$0] == true }.map(\.rawValue)
+        defaults.set(activeRawValues.isEmpty ? ["uk", "en"] : activeRawValues,
+                     forKey: "active_languages")
+
         defaults.synchronize()
     }
 
@@ -272,11 +327,164 @@ final class SettingsViewController: UIViewController {
         ])
     }
 
+    private func setupActiveLangSection() {
+        contentStack.addArrangedSubview(sectionHeader("ACTIVE LANGUAGES"))
+        contentStack.addArrangedSubview(activeLangCard)
+        activeLangCard.backgroundColor = Color.surface
+        activeLangCard.layer.cornerRadius = 12
+
+        let hintLabel = UILabel()
+        hintLabel.numberOfLines = 0
+        hintLabel.font = .systemFont(ofSize: 13)
+        hintLabel.textColor = Color.secondaryText
+        hintLabel.text = "Choose which keyboards appear in the language-switch cycle. " +
+                         "Switching auto-enables smart diacritics for European languages."
+        hintLabel.translatesAutoresizingMaskIntoConstraints = false
+        activeLangCard.addSubview(hintLabel)
+
+        let stackView = UIStackView()
+        stackView.axis = .vertical
+        stackView.spacing = 0
+        stackView.translatesAutoresizingMaskIntoConstraints = false
+        activeLangCard.addSubview(stackView)
+
+        for lang in Language.allCases {
+            let rowView = UIView()
+            rowView.translatesAutoresizingMaskIntoConstraints = false
+
+            let toggle = UISwitch()
+            toggle.isOn = activeLangFlags[lang] ?? false
+            toggle.onTintColor = Color.accent
+            toggle.translatesAutoresizingMaskIntoConstraints = false
+            toggle.tag = Language.allCases.firstIndex(of: lang) ?? 0
+            toggle.addTarget(self, action: #selector(activeLangToggled(_:)), for: .valueChanged)
+            rowView.addSubview(toggle)
+
+            let label = UILabel()
+            label.text = lang.displayName
+            label.font = .systemFont(ofSize: 15)
+            label.textColor = Color.text
+            label.translatesAutoresizingMaskIntoConstraints = false
+            rowView.addSubview(label)
+
+            NSLayoutConstraint.activate([
+                rowView.heightAnchor.constraint(equalToConstant: 44),
+                toggle.leadingAnchor.constraint(equalTo: rowView.leadingAnchor, constant: 16),
+                toggle.centerYAnchor.constraint(equalTo: rowView.centerYAnchor),
+                label.leadingAnchor.constraint(equalTo: toggle.trailingAnchor, constant: 12),
+                label.centerYAnchor.constraint(equalTo: rowView.centerYAnchor),
+                label.trailingAnchor.constraint(equalTo: rowView.trailingAnchor, constant: -16),
+            ])
+            stackView.addArrangedSubview(rowView)
+
+            // Separator (except last)
+            if lang != Language.allCases.last {
+                let sep = separatorView()
+                stackView.addArrangedSubview(sep)
+                sep.heightAnchor.constraint(equalToConstant: 1).isActive = true
+            }
+        }
+
+        NSLayoutConstraint.activate([
+            hintLabel.leadingAnchor.constraint(equalTo: activeLangCard.leadingAnchor, constant: 16),
+            hintLabel.trailingAnchor.constraint(equalTo: activeLangCard.trailingAnchor, constant: -16),
+            hintLabel.topAnchor.constraint(equalTo: activeLangCard.topAnchor, constant: 14),
+
+            stackView.leadingAnchor.constraint(equalTo: activeLangCard.leadingAnchor),
+            stackView.trailingAnchor.constraint(equalTo: activeLangCard.trailingAnchor),
+            stackView.topAnchor.constraint(equalTo: hintLabel.bottomAnchor, constant: 12),
+            stackView.bottomAnchor.constraint(equalTo: activeLangCard.bottomAnchor, constant: -8),
+        ])
+    }
+
+    @objc private func activeLangToggled(_ sender: UISwitch) {
+        let lang = Language.allCases[sender.tag]
+        activeLangFlags[lang] = sender.isOn
+        savePreferences()
+    }
+
+    private func setupTranslationSection() {
+        contentStack.addArrangedSubview(sectionHeader("TRANSLATION"))
+        contentStack.addArrangedSubview(translCard)
+        translCard.backgroundColor = Color.surface
+        translCard.layer.cornerRadius = 12
+
+        let hintLabel = UILabel()
+        hintLabel.numberOfLines = 0
+        hintLabel.font = .systemFont(ofSize: 13)
+        hintLabel.textColor = Color.secondaryText
+        hintLabel.text = "After each space, a blue strip shows the translation — tap to replace your text. " +
+                         "First use downloads ~30MB model (WiFi only). Select \"Off\" to disable."
+        hintLabel.translatesAutoresizingMaskIntoConstraints = false
+        translCard.addSubview(hintLabel)
+
+        let srcLabel = UILabel()
+        srcLabel.text = "Source language"
+        srcLabel.font = .systemFont(ofSize: 13, weight: .medium)
+        srcLabel.textColor = Color.text
+        srcLabel.translatesAutoresizingMaskIntoConstraints = false
+        translCard.addSubview(srcLabel)
+
+        translSrcPicker.dataSource = self
+        translSrcPicker.delegate   = self
+        translSrcPicker.tag = 10  // source picker tag
+        translSrcPicker.translatesAutoresizingMaskIntoConstraints = false
+        translSrcPicker.setValue(Color.text, forKeyPath: "textColor")
+        translCard.addSubview(translSrcPicker)
+
+        let sep1 = separatorView()
+        translCard.addSubview(sep1)
+
+        let tgtLabel = UILabel()
+        tgtLabel.text = "Target language"
+        tgtLabel.font = .systemFont(ofSize: 13, weight: .medium)
+        tgtLabel.textColor = Color.text
+        tgtLabel.translatesAutoresizingMaskIntoConstraints = false
+        translCard.addSubview(tgtLabel)
+
+        translTgtPicker.dataSource = self
+        translTgtPicker.delegate   = self
+        translTgtPicker.tag = 11  // target picker tag
+        translTgtPicker.translatesAutoresizingMaskIntoConstraints = false
+        translTgtPicker.setValue(Color.text, forKeyPath: "textColor")
+        translCard.addSubview(translTgtPicker)
+
+        NSLayoutConstraint.activate([
+            hintLabel.leadingAnchor.constraint(equalTo: translCard.leadingAnchor, constant: 16),
+            hintLabel.trailingAnchor.constraint(equalTo: translCard.trailingAnchor, constant: -16),
+            hintLabel.topAnchor.constraint(equalTo: translCard.topAnchor, constant: 14),
+
+            srcLabel.leadingAnchor.constraint(equalTo: translCard.leadingAnchor, constant: 16),
+            srcLabel.topAnchor.constraint(equalTo: hintLabel.bottomAnchor, constant: 12),
+
+            translSrcPicker.leadingAnchor.constraint(equalTo: translCard.leadingAnchor),
+            translSrcPicker.trailingAnchor.constraint(equalTo: translCard.trailingAnchor),
+            translSrcPicker.topAnchor.constraint(equalTo: srcLabel.bottomAnchor, constant: 4),
+            translSrcPicker.heightAnchor.constraint(equalToConstant: 120),
+
+            sep1.leadingAnchor.constraint(equalTo: translCard.leadingAnchor, constant: 16),
+            sep1.trailingAnchor.constraint(equalTo: translCard.trailingAnchor),
+            sep1.topAnchor.constraint(equalTo: translSrcPicker.bottomAnchor),
+            sep1.heightAnchor.constraint(equalToConstant: 1),
+
+            tgtLabel.leadingAnchor.constraint(equalTo: translCard.leadingAnchor, constant: 16),
+            tgtLabel.topAnchor.constraint(equalTo: sep1.bottomAnchor, constant: 12),
+
+            translTgtPicker.leadingAnchor.constraint(equalTo: translCard.leadingAnchor),
+            translTgtPicker.trailingAnchor.constraint(equalTo: translCard.trailingAnchor),
+            translTgtPicker.topAnchor.constraint(equalTo: tgtLabel.bottomAnchor, constant: 4),
+            translTgtPicker.heightAnchor.constraint(equalToConstant: 120),
+            translTgtPicker.bottomAnchor.constraint(equalTo: translCard.bottomAnchor, constant: -8),
+        ])
+    }
+
     // MARK: - Apply loaded values to UI
 
     private func applyUI() {
         diacrPicker.selectRow(selectedDiacriticsIndex, inComponent: 0, animated: false)
         langSegment.selectedSegmentIndex = defaultLanguageIsUK ? 0 : 1
+        translSrcPicker.selectRow(selectedTranslSrcIndex, inComponent: 0, animated: false)
+        translTgtPicker.selectRow(selectedTranslTgtIndex, inComponent: 0, animated: false)
     }
 
     // MARK: - Helpers
@@ -319,7 +527,10 @@ extension SettingsViewController: UIPickerViewDataSource {
     func numberOfComponents(in pickerView: UIPickerView) -> Int { 1 }
 
     func pickerView(_ pickerView: UIPickerView, numberOfRowsInComponent component: Int) -> Int {
-        diacriticsOptions.count
+        switch pickerView.tag {
+        case 10, 11: return translationLangs.count
+        default:     return diacriticsOptions.count
+        }
     }
 }
 
@@ -330,16 +541,22 @@ extension SettingsViewController: UIPickerViewDelegate {
     func pickerView(_ pickerView: UIPickerView,
                     attributedTitleForRow row: Int,
                     forComponent component: Int) -> NSAttributedString? {
-        NSAttributedString(
-            string: diacriticsOptions[row].displayName,
-            attributes: [.foregroundColor: Color.text]
-        )
+        let title: String
+        switch pickerView.tag {
+        case 10, 11: title = translationLangs[row].displayName
+        default:     title = diacriticsOptions[row].displayName
+        }
+        return NSAttributedString(string: title, attributes: [.foregroundColor: Color.text])
     }
 
     func pickerView(_ pickerView: UIPickerView,
                     didSelectRow row: Int,
                     inComponent component: Int) {
-        selectedDiacriticsIndex = row
+        switch pickerView.tag {
+        case 10: selectedTranslSrcIndex = row
+        case 11: selectedTranslTgtIndex = row
+        default: selectedDiacriticsIndex = row
+        }
         savePreferences()
     }
 }

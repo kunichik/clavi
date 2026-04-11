@@ -8,6 +8,10 @@ protocol ClaviKeyboardViewDelegate: AnyObject {
     func didTapDiacritic(_ variant: String)
     func didTapFix(_ fix: TextFixEngine.Fix)
     func didDismissFix()
+    func didTapTranslation(_ suggestion: TranslationEngine.TranslationSuggestion)
+    func didDismissTranslation()
+    func didTapPrediction(_ word: String)
+    func didRequestEmojiPanel()
     func didTapNextKeyboard()
 }
 
@@ -28,9 +32,11 @@ class ClaviKeyboardView: UIView {
     var currentLanguage: Language = .uk { didSet { updateLangButton() } }
 
     // Strip data — setting any of these triggers priority re-evaluation
-    var clipItems: [String] = []      { didSet { updateStripVisibility() } }
-    var diacriticItems: [String] = [] { didSet { updateStripVisibility() } }
+    var clipItems: [String] = []        { didSet { updateStripVisibility() } }
+    var diacriticItems: [String] = []   { didSet { updateStripVisibility() } }
     var fixSuggestion: TextFixEngine.Fix? { didSet { updateStripVisibility() } }
+    var translationSuggestion: TranslationEngine.TranslationSuggestion? { didSet { updateStripVisibility() } }
+    var predictionItems: [String] = [] { didSet { updateStripVisibility() } }
 
     // MARK: - Subviews
 
@@ -46,6 +52,14 @@ class ClaviKeyboardView: UIView {
     // Fix strip
     private let fixStrip        = UIView()
     private let fixStack        = UIStackView()
+
+    // Translation strip
+    private let translStrip     = UIView()
+    private let translStack     = UIStackView()
+
+    // Predictions strip
+    private let predStrip       = UIView()
+    private let predStack       = UIStackView()
 
     private let keysContainer   = UIView()
     private var keyButtons: [UIButton: KeyDef] = [:]
@@ -70,6 +84,8 @@ class ClaviKeyboardView: UIView {
     private let chipColor      = UIColor(red: 0.22, green: 0.28, blue: 0.31, alpha: 1)
     private let diacrBgColor   = UIColor(red: 0.04, green: 0.26, blue: 0.26, alpha: 1)
     private let fixBgColor     = UIColor(red: 0.09, green: 0.19, blue: 0.14, alpha: 1)
+    private let translBgColor  = UIColor(red: 0.05, green: 0.28, blue: 0.63, alpha: 1)
+    private let predBgColor    = UIColor(red: 0.11, green: 0.14, blue: 0.16, alpha: 1)
 
     // MARK: - Init
 
@@ -89,6 +105,8 @@ class ClaviKeyboardView: UIView {
         setupClipStrip()
         setupDiacrStrip()
         setupFixStrip()
+        setupTranslStrip()
+        setupPredStrip()
 
         keysContainer.translatesAutoresizingMaskIntoConstraints = false
         addSubview(keysContainer)
@@ -126,6 +144,25 @@ class ClaviKeyboardView: UIView {
             fixStack.leadingAnchor.constraint(equalTo: fixStrip.leadingAnchor, constant: 8),
             fixStack.trailingAnchor.constraint(equalTo: fixStrip.trailingAnchor, constant: -8),
             fixStack.centerYAnchor.constraint(equalTo: fixStrip.centerYAnchor),
+
+            translStrip.leadingAnchor.constraint(equalTo: leadingAnchor),
+            translStrip.trailingAnchor.constraint(equalTo: trailingAnchor),
+            translStrip.topAnchor.constraint(equalTo: topAnchor),
+            translStrip.heightAnchor.constraint(equalToConstant: stripHeight),
+
+            translStack.leadingAnchor.constraint(equalTo: translStrip.leadingAnchor, constant: 8),
+            translStack.trailingAnchor.constraint(equalTo: translStrip.trailingAnchor, constant: -8),
+            translStack.centerYAnchor.constraint(equalTo: translStrip.centerYAnchor),
+
+            predStrip.leadingAnchor.constraint(equalTo: leadingAnchor),
+            predStrip.trailingAnchor.constraint(equalTo: trailingAnchor),
+            predStrip.topAnchor.constraint(equalTo: topAnchor),
+            predStrip.heightAnchor.constraint(equalToConstant: stripHeight),
+
+            predStack.leadingAnchor.constraint(equalTo: predStrip.leadingAnchor),
+            predStack.trailingAnchor.constraint(equalTo: predStrip.trailingAnchor),
+            predStack.topAnchor.constraint(equalTo: predStrip.topAnchor),
+            predStack.bottomAnchor.constraint(equalTo: predStrip.bottomAnchor),
 
             keysContainer.leadingAnchor.constraint(equalTo: leadingAnchor),
             keysContainer.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -186,20 +223,55 @@ class ClaviKeyboardView: UIView {
         fixStrip.addSubview(fixStack)
     }
 
-    // MARK: - Strip visibility (priority: fix > diacritics > clipboard)
+    // MARK: - Predictions strip setup
+
+    private func setupPredStrip() {
+        predStrip.backgroundColor = predBgColor
+        predStrip.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(predStrip)
+
+        // Equal-width distribution — 3 word buttons spanning full width, iOS-style
+        predStack.axis = .horizontal
+        predStack.distribution = .fillEqually
+        predStack.spacing = 0
+        predStack.translatesAutoresizingMaskIntoConstraints = false
+        predStrip.addSubview(predStack)
+    }
+
+    // MARK: - Translation strip setup
+
+    private func setupTranslStrip() {
+        translStrip.backgroundColor = translBgColor
+        translStrip.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(translStrip)
+
+        translStack.axis = .horizontal
+        translStack.spacing = 8
+        translStack.alignment = .center
+        translStack.translatesAutoresizingMaskIntoConstraints = false
+        translStrip.addSubview(translStack)
+    }
+
+    // MARK: - Strip visibility (priority: fix > translation > diacritics > predictions > clipboard)
 
     private func updateStripVisibility() {
-        let showFix    = fixSuggestion != nil
-        let showDiacr  = !showFix && !diacriticItems.isEmpty
-        let showClip   = !showFix && !showDiacr && !clipItems.isEmpty
+        let showFix   = fixSuggestion != nil
+        let showTransl = !showFix && translationSuggestion != nil
+        let showDiacr  = !showFix && !showTransl && !diacriticItems.isEmpty
+        let showPred   = !showFix && !showTransl && !showDiacr && !predictionItems.isEmpty
+        let showClip   = !showFix && !showTransl && !showDiacr && !showPred && !clipItems.isEmpty
 
-        fixStrip.isHidden    = !showFix
-        diacrStrip.isHidden  = !showDiacr
+        fixStrip.isHidden       = !showFix
+        translStrip.isHidden    = !showTransl
+        diacrStrip.isHidden     = !showDiacr
+        predStrip.isHidden      = !showPred
         clipScrollView.isHidden = !showClip
         clipClearBtn.isHidden   = !showClip
 
         if showFix    { rebuildFixStrip() }
+        if showTransl { rebuildTranslStrip() }
         if showDiacr  { rebuildDiacrStrip() }
+        if showPred   { rebuildPredStrip() }
         if showClip   { rebuildClipStrip() }
     }
 
@@ -275,6 +347,72 @@ class ClaviKeyboardView: UIView {
         fixStack.addArrangedSubview(dismissBtn)
     }
 
+    private func rebuildPredStrip() {
+        predStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+
+        for (i, word) in predictionItems.prefix(3).enumerated() {
+            let btn = UIButton(type: .custom)
+            btn.setTitle(word, for: .normal)
+            btn.setTitleColor(.white, for: .normal)
+            btn.titleLabel?.font = .systemFont(ofSize: 15)
+            btn.backgroundColor = .clear
+            btn.tag = i
+            btn.addTarget(self, action: #selector(predChipTapped(_:)), for: .touchUpInside)
+            predStack.addArrangedSubview(btn)
+
+            // Divider between chips (not after last)
+            if i < predictionItems.prefix(3).count - 1 {
+                let div = UIView()
+                div.backgroundColor = UIColor(white: 1, alpha: 0.15)
+                div.translatesAutoresizingMaskIntoConstraints = false
+                div.widthAnchor.constraint(equalToConstant: 1).isActive = true
+                predStack.addArrangedSubview(div)
+            }
+        }
+    }
+
+    private func rebuildTranslStrip() {
+        translStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        guard let suggestion = translationSuggestion else { return }
+
+        // "🌐 en→uk:" label
+        let label = UILabel()
+        label.text = "\u{1F310} \(suggestion.sourceLang)→\(suggestion.targetLang):"
+        label.font = .systemFont(ofSize: 11)
+        label.textColor = UIColor(white: 1, alpha: 0.55)
+        translStack.addArrangedSubview(label)
+
+        // Translation chip (main tap target)
+        let preview = String(suggestion.translated.prefix(35)) +
+                      (suggestion.translated.count > 35 ? "…" : "")
+        let transBtnBg = UIColor(red: 0.10, green: 0.46, blue: 0.82, alpha: 0.85)
+        let transBtn = chipButton(title: preview,
+                                  color: UIColor(red: 0.7, green: 0.9, blue: 1.0, alpha: 1),
+                                  bg: transBtnBg)
+        transBtn.addTarget(self, action: #selector(translationApplyTapped), for: .touchUpInside)
+        translStack.addArrangedSubview(transBtn)
+
+        // Original hint
+        let origLabel = UILabel()
+        let origPreview = String(suggestion.original.prefix(25)) +
+                          (suggestion.original.count > 25 ? "…" : "")
+        origLabel.text = origPreview
+        origLabel.font = .systemFont(ofSize: 10)
+        origLabel.textColor = UIColor(white: 1, alpha: 0.35)
+        translStack.addArrangedSubview(origLabel)
+
+        // Spacer
+        let spacer = UIView()
+        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        translStack.addArrangedSubview(spacer)
+
+        // Dismiss button
+        let dismissBtn = chipButton(title: "✕", color: UIColor(white: 1, alpha: 0.6),
+                                    bg: chipColor.withAlphaComponent(0.5))
+        dismissBtn.addTarget(self, action: #selector(translationDismissTapped), for: .touchUpInside)
+        translStack.addArrangedSubview(dismissBtn)
+    }
+
     // MARK: - Helper
 
     private func chipButton(title: String, color: UIColor, bg: UIColor) -> UIButton {
@@ -317,6 +455,20 @@ class ClaviKeyboardView: UIView {
         delegate?.didDismissFix()
     }
 
+    @objc private func predChipTapped(_ sender: UIButton) {
+        guard sender.tag < predictionItems.count else { return }
+        delegate?.didTapPrediction(predictionItems[sender.tag])
+    }
+
+    @objc private func translationApplyTapped() {
+        guard let suggestion = translationSuggestion else { return }
+        delegate?.didTapTranslation(suggestion)
+    }
+
+    @objc private func translationDismissTapped() {
+        delegate?.didDismissTranslation()
+    }
+
     // MARK: - Keys
 
     private func rebuildKeys() {
@@ -340,6 +492,12 @@ class ClaviKeyboardView: UIView {
 
                 if case .translit = key.action { translitButton = btn }
                 if case .langSwitch = key.action { langButton = btn }
+                // Long-press on space → emoji panel
+                if case .space = key.action {
+                    let lp = UILongPressGestureRecognizer(target: self, action: #selector(spaceLongPressed(_:)))
+                    lp.minimumPressDuration = 0.5
+                    btn.addGestureRecognizer(lp)
+                }
                 btn.tag = rowIdx * 100 + (row.firstIndex(where: { $0.label == key.label }) ?? 0)
             }
         }
@@ -379,7 +537,7 @@ class ClaviKeyboardView: UIView {
     }
 
     private func keyFont(for key: KeyDef) -> UIFont {
-        key.isSpecial && key.label.count > 1
+        key.isSpecial && key.label.count > 3
             ? .systemFont(ofSize: 13, weight: .medium)
             : .systemFont(ofSize: 20, weight: .regular)
     }
@@ -388,6 +546,12 @@ class ClaviKeyboardView: UIView {
         guard let key = keyButtons[sender] else { return }
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         delegate?.didTapKey(key)
+    }
+
+    @objc private func spaceLongPressed(_ gr: UILongPressGestureRecognizer) {
+        guard gr.state == .began else { return }
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        delegate?.didRequestEmojiPanel()
     }
 
     private func updateTranslitButton() {

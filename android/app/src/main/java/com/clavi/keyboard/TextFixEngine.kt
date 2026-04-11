@@ -48,6 +48,9 @@ object TextFixEngine {
         // Fix 6: repeated characters (accidental double-tap)
         fixRepeatedChars(textBefore)?.let { return it }
 
+        // Fix 7: accidental caps (e.g. "ПРивіт" → "Привіт")
+        fixAccidentalCaps(textBefore)?.let { return it }
+
         return null
     }
 
@@ -111,6 +114,22 @@ object TextFixEngine {
             original = text,
             fixed = text.dropLast(lastWord.length) + fixed,
             description = "repeated characters"
+        )
+    }
+
+    private fun fixAccidentalCaps(text: String): Fix? {
+        val word = extractLastWord(text) ?: return null
+        if (word.length < 4) return null
+        // Pattern: first two chars uppercase, at least one lowercase after (e.g. "ПРивіт", "HEllo")
+        if (!word[0].isUpperCase() || !word[1].isUpperCase()) return null
+        if (word.drop(2).none { it.isLowerCase() }) return null
+        // Fix: keep first char uppercase, lowercase the rest
+        val fixed = word[0].toString() + word.drop(1).lowercase()
+        if (fixed == word) return null
+        return Fix(
+            original = text,
+            fixed = text.dropLast(word.length) + fixed,
+            description = "caps: ${word.take(6)}… → ${fixed.take(6)}…"
         )
     }
 

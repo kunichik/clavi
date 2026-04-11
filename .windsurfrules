@@ -5,10 +5,9 @@ Cross-platform keyboard layout switcher + language bridge (`clavis` = Latin for 
 Platforms: Android IME (Kotlin), iOS Keyboard Extension (Swift), Desktop daemon (C++20).
 
 ## Non-Negotiable Rules
-1. **Russian language is permanently banned.** No `ru` locale, no Russian content anywhere.
-2. **No network calls** from keyboard/engine code. Fully local, no cloud.
-3. **No telemetry, no accounts.** Privacy first.
-4. **GPLv3** core, **CC BY-SA 4.0** language packs.
+1. **No network calls** from keyboard/engine code. Fully local, no cloud.
+2. **No telemetry, no accounts.** Privacy first.
+3. **GPLv3** core, **CC BY-SA 4.0** language packs.
 
 ## Codebase Map
 

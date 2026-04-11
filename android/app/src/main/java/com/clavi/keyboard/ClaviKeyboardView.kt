@@ -29,6 +29,7 @@ class ClaviKeyboardView @JvmOverloads constructor(
 
     interface OnKeyListener {
         fun onKey(key: Key)
+        fun onSpaceLongPress()
     }
 
     interface OnStripListener {
@@ -37,6 +38,9 @@ class ClaviKeyboardView @JvmOverloads constructor(
         fun onStripClear()
         fun onDiacriticTap(variant: String)
         fun onFixTap(fix: TextFixEngine.Fix)
+        fun onTranslationTap(suggestion: TranslationEngine.TranslationSuggestion)
+        fun onTranslationDismiss()
+        fun onPredictionTap(word: String)
     }
 
     var listener: OnKeyListener? = null
@@ -53,13 +57,23 @@ class ClaviKeyboardView @JvmOverloads constructor(
     var diacriticItems: List<String> = emptyList()
         set(value) { field = value; requestLayout(); invalidate() }
 
-    // Text fix suggestion — highest priority, overrides both clipboard and diacritics
+    // Text fix suggestion — highest priority, overrides all other strips
     var fixSuggestion: TextFixEngine.Fix? = null
         set(value) { field = value; requestLayout(); invalidate() }
 
-    // Strip priority: fix > diacritics > clipboard
-    private val stripShowsFix get() = fixSuggestion != null
-    private val stripShowsDiacritics get() = !stripShowsFix && diacriticItems.isNotEmpty()
+    // Translation suggestion — second priority (after fix)
+    var translationSuggestion: TranslationEngine.TranslationSuggestion? = null
+        set(value) { field = value; requestLayout(); invalidate() }
+
+    // Word predictions — shown when no reactive strip is active
+    var predictionItems: List<String> = emptyList()
+        set(value) { field = value; requestLayout(); invalidate() }
+
+    // Strip priority: fix > translation > diacritics > predictions > clipboard
+    private val stripShowsFix         get() = fixSuggestion != null
+    private val stripShowsTranslation get() = !stripShowsFix && translationSuggestion != null
+    private val stripShowsDiacritics  get() = !stripShowsFix && !stripShowsTranslation && diacriticItems.isNotEmpty()
+    private val stripShowsPredictions get() = !stripShowsFix && !stripShowsTranslation && !stripShowsDiacritics && predictionItems.isNotEmpty()
 
     private var rows: List<Row> = emptyList()
     private val keyRects = mutableListOf<Pair<RectF, Key>>()
@@ -95,6 +109,16 @@ class ClaviKeyboardView @JvmOverloads constructor(
     // Long press detection for clip chips
     private val longPressHandler = Handler(Looper.getMainLooper())
     private var longPressPending = false
+
+    // Long press detection for space key → emoji panel
+    private var spaceLongPressPending = false
+    private val spaceLongPressRunnable = Runnable {
+        spaceLongPressPending = false
+        pressedKey = null
+        invalidate()
+        performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+        listener?.onSpaceLongPress()
+    }
     private var longPressChipIndex = -1
     private val longPressRunnable = Runnable {
         val idx = longPressChipIndex
@@ -168,8 +192,10 @@ class ClaviKeyboardView @JvmOverloads constructor(
         val rp = rowPadding * density
         val keysH = (keyHeight * rowCount + rp * (rowCount + 1)).toInt()
 
-        // Strip height: 40dp when there are clips, 0 otherwise
-        stripHeight = if (clipItems.isNotEmpty()) 40f * density else 0f
+        // Strip height: 40dp when any strip type has content, 0 otherwise
+        stripHeight = if (clipItems.isNotEmpty() || diacriticItems.isNotEmpty() ||
+                         fixSuggestion != null || translationSuggestion != null ||
+                         predictionItems.isNotEmpty()) 40f * density else 0f
 
         setMeasuredDimension(w, keysH + stripHeight.toInt())
     }
@@ -180,10 +206,12 @@ class ClaviKeyboardView @JvmOverloads constructor(
 
         val density = resources.displayMetrics.density
 
-        // ── Strip (fix > diacritics > clipboard) ──
+        // ── Strip (fix > translation > diacritics > predictions > clipboard) ──
         when {
-            stripShowsFix        -> drawFixStrip(canvas, density)
-            stripShowsDiacritics -> drawDiacriticsStrip(canvas, density)
+            stripShowsFix          -> drawFixStrip(canvas, density)
+            stripShowsTranslation  -> drawTranslationStrip(canvas, density)
+            stripShowsDiacritics   -> drawDiacriticsStrip(canvas, density)
+            stripShowsPredictions  -> drawPredictionsStrip(canvas, density)
             clipItems.isNotEmpty() -> drawStrip(canvas, density)
         }
 
@@ -304,6 +332,78 @@ class ClaviKeyboardView @JvmOverloads constructor(
         canvas.drawText(fix.description, width - 8f * density, chipBottom - chipPaddingV * density * 0.5f, hintPaint)
     }
 
+    private fun drawTranslationStrip(canvas: Canvas, density: Float) {
+        chipRects.clear()
+        clearButtonRect = RectF()
+        val suggestion = translationSuggestion ?: return
+
+        val sh = stripHeight
+        // Deep blue background — "translation available"
+        canvas.drawRect(0f, 0f, width.toFloat(), sh,
+            Paint().apply { color = Color.argb(255, 13, 71, 161) })
+
+        val chipH = sh - chipPaddingV * density * 2
+        val chipTop = chipPaddingV * density
+        val chipBottom = chipTop + chipH
+        val chipR = chipRadius * density
+        chipTextPaint.textSize = 13f * density
+        chipTextPaint.textAlign = Paint.Align.LEFT
+
+        var x = 8f * density
+
+        // Globe icon + source label
+        val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(160, 255, 255, 255)
+            textSize = 11f * density
+            textAlign = Paint.Align.LEFT
+        }
+        val srcLabel = "\uD83C\uDF10 ${suggestion.sourceLang}→${suggestion.targetLang}:"
+        canvas.drawText(srcLabel, x, chipBottom - chipPaddingV * density * 0.5f, labelPaint)
+        x += labelPaint.measureText(srcLabel) + 8f * density
+
+        // Translation chip (main tap target)
+        val preview = suggestion.translated.let {
+            if (it.length > 35) it.take(34) + "\u2026" else it
+        }
+        val previewW = chipTextPaint.measureText(preview)
+        val chipW = previewW + chipPaddingH * density * 2
+
+        val rect = RectF(x, chipTop, x + chipW, chipBottom)
+        chipRects.add(rect)  // index 0 = tap to apply
+
+        val bgColor = if (pressedChipIndex == 0) keyBgPressedColor
+                      else Color.argb(220, 25, 118, 210)  // blue chip
+        canvas.drawRoundRect(rect, chipR, chipR, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = bgColor })
+        chipTextPaint.color = Color.WHITE
+        canvas.drawText(preview, rect.left + chipPaddingH * density,
+            chipBottom - chipPaddingV * density * 0.8f, chipTextPaint)
+        chipTextPaint.color = chipTextColor
+
+        // Small original text hint below the translated text
+        val origPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(120, 255, 255, 255)
+            textSize = 9f * density
+            textAlign = Paint.Align.LEFT
+        }
+        val origPreview = suggestion.original.let {
+            if (it.length > 30) it.take(29) + "\u2026" else it
+        }
+        canvas.drawText(origPreview, rect.left + chipPaddingH * density,
+            chipBottom - 1f * density, origPaint)
+
+        x += chipW + chipSpacing * density
+
+        // Dismiss (✕) chip
+        val dismissW = 36f * density
+        val dismissRect = RectF(x, chipTop, x + dismissW, chipBottom)
+        chipRects.add(dismissRect)  // index 1 = dismiss
+        canvas.drawRoundRect(dismissRect, chipR, chipR, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(120, 120, 120, 120)
+        })
+        clearBtnPaint.textSize = 14f * density
+        canvas.drawText("✕", dismissRect.centerX(), chipBottom - chipPaddingV * density * 0.8f, clearBtnPaint)
+    }
+
     private fun drawDiacriticsStrip(canvas: Canvas, density: Float) {
         chipRects.clear()
         clearButtonRect = RectF()  // no clear button in diacritics mode
@@ -368,6 +468,65 @@ class ClaviKeyboardView @JvmOverloads constructor(
 
         // Reset chipBgPaint color
         chipBgPaint.color = chipBgColor
+    }
+
+    private fun drawPredictionsStrip(canvas: Canvas, density: Float) {
+        chipRects.clear()
+        clearButtonRect = RectF()
+
+        val sh = stripHeight
+        // Neutral dark bg — predictions are passive, not urgent
+        canvas.drawRect(0f, 0f, width.toFloat(), sh,
+            Paint().apply { color = Color.argb(255, 28, 35, 42) })
+
+        val chipH = sh - chipPaddingV * density * 2
+        val chipTop = chipPaddingV * density
+        val chipBottom = chipTop + chipH
+        val chipR = chipRadius * density
+        val textSize = 14f * density
+        chipTextPaint.textSize = textSize
+        chipTextPaint.textAlign = Paint.Align.CENTER
+
+        // Dividers between chips — iOS-style
+        val divW = 1f * density
+        val divPaintColor = Color.argb(60, 255, 255, 255)
+
+        // Spread up to 3 chips evenly across the full strip width
+        val items = predictionItems.take(3)
+        val colW = width.toFloat() / items.size
+
+        items.forEachIndexed { i, word ->
+            val chipLeft = colW * i
+            val chipRight = colW * (i + 1)
+
+            val rect = RectF(chipLeft, chipTop, chipRight, chipBottom)
+            chipRects.add(rect)
+
+            // Pressed highlight
+            if (pressedChipIndex == i) {
+                canvas.drawRoundRect(
+                    RectF(chipLeft + 4f * density, chipTop, chipRight - 4f * density, chipBottom),
+                    chipR, chipR,
+                    Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(60, 255, 255, 255) }
+                )
+            }
+
+            // Word text
+            chipTextPaint.color = Color.WHITE
+            canvas.drawText(word, chipLeft + colW / 2f, chipBottom - chipPaddingV * density * 0.8f, chipTextPaint)
+
+            // Divider (skip last)
+            if (i < items.size - 1) {
+                canvas.drawRect(
+                    chipRight - divW / 2f, chipTop + 6f * density,
+                    chipRight + divW / 2f, chipBottom - 6f * density,
+                    Paint().apply { color = divPaintColor }
+                )
+            }
+        }
+
+        chipTextPaint.color = chipTextColor
+        chipTextPaint.textAlign = Paint.Align.LEFT
     }
 
     private fun drawKeys(canvas: Canvas, density: Float, topOffset: Float) {
@@ -443,14 +602,17 @@ class ClaviKeyboardView @JvmOverloads constructor(
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
                 // Check strip first
-                if (y < stripHeight && (stripShowsDiacritics || clipItems.isNotEmpty())) {
-                    if (!stripShowsDiacritics && clearButtonRect.contains(x, y)) return true
+                if (y < stripHeight && (stripShowsFix || stripShowsTranslation ||
+                                        stripShowsDiacritics || stripShowsPredictions || clipItems.isNotEmpty())) {
+                    if (!stripShowsDiacritics && !stripShowsFix && !stripShowsTranslation &&
+                        !stripShowsPredictions && clearButtonRect.contains(x, y)) return true
                     val idx = chipRects.indexOfFirst { it.contains(x, y) }
                     if (idx >= 0) {
                         pressedChipIndex = idx
                         longPressChipIndex = idx
                         longPressPending = true
-                        if (!stripShowsDiacritics) {
+                        if (!stripShowsDiacritics && !stripShowsFix && !stripShowsTranslation &&
+                            !stripShowsPredictions) {
                             longPressHandler.postDelayed(longPressRunnable, 500)
                         }
                         invalidate()
@@ -465,6 +627,11 @@ class ClaviKeyboardView @JvmOverloads constructor(
                     pressedKey = hit.second
                     invalidate()
                     if (hapticEnabled) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    // Long-press on space → emoji panel
+                    if (hit.second.code == KeyboardLayout.KEYCODE_SPACE) {
+                        spaceLongPressPending = true
+                        longPressHandler.postDelayed(spaceLongPressRunnable, 600)
+                    }
                 }
                 return true
             }
@@ -481,9 +648,20 @@ class ClaviKeyboardView @JvmOverloads constructor(
                                     fixSuggestion = null  // dismiss
                                 }
                             }
+                            stripShowsTranslation -> {
+                                if (pressedChipIndex == 0) {
+                                    translationSuggestion?.let { stripListener?.onTranslationTap(it) }
+                                } else {
+                                    stripListener?.onTranslationDismiss()
+                                }
+                            }
                             stripShowsDiacritics -> {
                                 val variant = diacriticItems.getOrNull(pressedChipIndex)
                                 if (variant != null) stripListener?.onDiacriticTap(variant)
+                            }
+                            stripShowsPredictions -> {
+                                val word = predictionItems.getOrNull(pressedChipIndex)
+                                if (word != null) stripListener?.onPredictionTap(word)
                             }
                             else -> stripListener?.onClipTap(pressedChipIndex)
                         }
@@ -497,7 +675,13 @@ class ClaviKeyboardView @JvmOverloads constructor(
                     stripListener?.onStripClear()
                     return true
                 }
-                pressedKey?.let { listener?.onKey(it) }
+                longPressHandler.removeCallbacks(spaceLongPressRunnable)
+                if (spaceLongPressPending) {
+                    spaceLongPressPending = false
+                    pressedKey?.let { listener?.onKey(it) }
+                } else {
+                    pressedKey?.let { listener?.onKey(it) }
+                }
                 pressedKey = null
                 invalidate()
                 return true
@@ -505,6 +689,8 @@ class ClaviKeyboardView @JvmOverloads constructor(
 
             MotionEvent.ACTION_CANCEL -> {
                 longPressHandler.removeCallbacks(longPressRunnable)
+                longPressHandler.removeCallbacks(spaceLongPressRunnable)
+                spaceLongPressPending = false
                 pressedKey = null
                 pressedChipIndex = -1
                 longPressPending = false

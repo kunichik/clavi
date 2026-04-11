@@ -22,9 +22,8 @@ Type `ghbdsn` when your layout is set to English → Clavi detects it, switches 
 
 ## Hard Rules
 
-1. **Russian language is permanently disabled.** No Russian keyboard map, no Russian dictionary, ever.
-2. **No telemetry, no cloud, no accounts.**
-3. **Keystrokes never leave the machine.**
+1. **No telemetry, no cloud, no accounts.**
+2. **Keystrokes never leave the machine.**
 
 ## Tech Stack
 

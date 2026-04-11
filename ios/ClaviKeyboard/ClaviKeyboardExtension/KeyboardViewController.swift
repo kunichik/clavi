@@ -24,7 +24,16 @@ class KeyboardViewController: UIInputViewController {
     private var symbolsMode = false
     private var translitBuffer = ""
 
-    private var diacriticsLocale: String? = nil   // set from app group UserDefaults
+    // Language rotation
+    private var activeLanguages: [Language] = [.uk, .en]
+    private var currentLangIndex: Int = 0
+
+    // Diacritics: userLocale from Settings, diacriticsLocale = effective (may be auto-set)
+    private var userDiacriticsLocale: String? = nil
+    private var diacriticsLocale: String? = nil
+
+    private var translationEngine: TranslationEngine? = nil
+    private var predictionEngine = WordPredictionEngine()
 
     // MARK: - Lifecycle
 
@@ -40,19 +49,45 @@ class KeyboardViewController: UIInputViewController {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         loadPreferences()
-        clipboardHistory.refresh()
-        keyboardView.clipItems = clipboardHistory.recent
+
+        // Password field detection: hide sensitive strips for privacy
+        let isPassword = textDocumentProxy.keyboardType == .some(.asciiCapableNumberPad) ||
+            textDocumentProxy.textContentType == .password ||
+            textDocumentProxy.textContentType == .newPassword
+        if isPassword {
+            keyboardView.clipItems = []
+            keyboardView.translationSuggestion = nil
+            keyboardView.predictionItems = []
+            if translitMode { handleTranslitToggle() }
+        } else {
+            clipboardHistory.refresh()
+            keyboardView.clipItems = clipboardHistory.recent
+        }
     }
 
     // MARK: - Preferences
 
     private func loadPreferences() {
-        // Shared UserDefaults between app and extension (requires App Group entitlement)
-        // Falls back to standard UserDefaults for now
         let defaults = UserDefaults(suiteName: "group.com.clavi.keyboard") ?? .standard
-        diacriticsLocale = defaults.string(forKey: "diacritics_locale")
-        let savedLang = defaults.string(forKey: "default_language") ?? "UK"
-        currentLanguage = savedLang == "EN" ? .en : .uk
+        userDiacriticsLocale = defaults.string(forKey: "diacritics_locale")
+        diacriticsLocale = userDiacriticsLocale
+
+        let savedLang = defaults.string(forKey: "default_language") ?? "uk"
+        currentLanguage = Language(rawValue: savedLang.lowercased()) ?? .uk
+
+        // Load active languages (array of rawValues stored as [String])
+        let defaultActive = ["uk", "en"]
+        let savedActive = (defaults.array(forKey: "active_languages") as? [String]) ?? defaultActive
+        // Preserve canonical Language.allCases order
+        activeLanguages = Language.allCases.filter { savedActive.contains($0.rawValue) }
+        if activeLanguages.isEmpty { activeLanguages = [.uk, .en] }
+        currentLangIndex = activeLanguages.firstIndex(of: currentLanguage) ?? 0
+
+        let transSrc = defaults.string(forKey: "translation_source_lang")
+        let transTgt = defaults.string(forKey: "translation_target_lang")
+        translationEngine = (transSrc != nil && transTgt != nil)
+            ? TranslationEngine(sourceLang: transSrc!, targetLang: transTgt!)
+            : nil
     }
 
     // MARK: - Setup
@@ -105,15 +140,30 @@ class KeyboardViewController: UIInputViewController {
             flushTranslitBuffer(force: false)
             keyboardView.diacriticItems = []
             keyboardView.fixSuggestion = nil
+            keyboardView.predictionItems = []
         } else {
             textDocumentProxy.insertText(text)
             showDiacriticsIfNeeded(text)
 
-            if text == " " {
+            if text == " " || text == "\n" {
                 let before = textDocumentProxy.documentContextBeforeInput ?? ""
-                keyboardView.fixSuggestion = TextFixEngine.analyze(before)
+                let fix = TextFixEngine.analyze(before)
+                keyboardView.fixSuggestion = fix
+                if fix == nil {
+                    keyboardView.translationSuggestion = nil
+                    translationEngine?.translate(before) { [weak self] suggestion in
+                        self?.keyboardView.translationSuggestion = suggestion
+                    }
+                    // Word predictions (shown when translation strip also not showing)
+                    keyboardView.predictionItems = predictionEngine.predict(before, language: currentLanguage)
+                } else {
+                    keyboardView.translationSuggestion = nil
+                    keyboardView.predictionItems = []
+                }
             } else {
                 keyboardView.fixSuggestion = nil
+                keyboardView.translationSuggestion = nil
+                keyboardView.predictionItems = []
             }
         }
 
@@ -149,6 +199,8 @@ class KeyboardViewController: UIInputViewController {
     private func handleBackspace() {
         keyboardView.diacriticItems = []
         keyboardView.fixSuggestion = nil
+        keyboardView.translationSuggestion = nil
+        keyboardView.predictionItems = []
         if !translitBuffer.isEmpty {
             translitBuffer = String(translitBuffer.dropLast())
         } else {
@@ -174,8 +226,15 @@ class KeyboardViewController: UIInputViewController {
 
     private func handleLangSwitch() {
         flushTranslitBuffer(force: true)
-        currentLanguage = currentLanguage == .uk ? .en : .uk
+        currentLangIndex = (currentLangIndex + 1) % activeLanguages.count
+        currentLanguage = activeLanguages[currentLangIndex]
+
+        // Auto-enable diacritics for European languages; restore user setting for others
+        diacriticsLocale = currentLanguage.diacriticsLocale ?? userDiacriticsLocale
+
         shifted = false; capsLock = false; symbolsMode = false
+        // Translit only makes sense in EN input mode (typing Latin → Ukrainian)
+        if translitMode && currentLanguage != .en { translitMode = false }
         updateLayout()
     }
 
@@ -233,6 +292,44 @@ extension KeyboardViewController: ClaviKeyboardViewDelegate {
 
     func didDismissFix() {
         keyboardView.fixSuggestion = nil
+    }
+
+    func didTapTranslation(_ suggestion: TranslationEngine.TranslationSuggestion) {
+        // Delete the original phrase and insert the translation
+        for _ in 0..<suggestion.original.count {
+            textDocumentProxy.deleteBackward()
+        }
+        textDocumentProxy.insertText(suggestion.translated)
+        keyboardView.translationSuggestion = nil
+    }
+
+    func didDismissTranslation() {
+        keyboardView.translationSuggestion = nil
+    }
+
+    func didRequestEmojiPanel() {
+        let panel = EmojiPanel()
+        panel.translatesAutoresizingMaskIntoConstraints = false
+        panel.onEmojiSelected = { [weak self, weak panel] emoji in
+            self?.textDocumentProxy.insertText(emoji)
+            panel?.removeFromSuperview()
+        }
+        panel.onDismiss = { [weak panel] in panel?.removeFromSuperview() }
+        view.addSubview(panel)
+        NSLayoutConstraint.activate([
+            panel.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            panel.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            panel.topAnchor.constraint(equalTo: view.topAnchor),
+            panel.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
+    }
+
+    func didTapPrediction(_ word: String) {
+        textDocumentProxy.insertText(word + " ")
+        // Re-predict based on word just tapped
+        let before = (textDocumentProxy.documentContextBeforeInput ?? "") + word + " "
+        keyboardView.predictionItems = predictionEngine.predict(before, language: currentLanguage)
+        if shifted && !capsLock { shifted = false; updateLayout() }
     }
 
     func didTapNextKeyboard() {

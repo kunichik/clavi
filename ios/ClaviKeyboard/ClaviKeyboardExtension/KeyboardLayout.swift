@@ -1,6 +1,55 @@
 import Foundation
+import UIKit
 
-enum Language { case uk, en }
+enum Language: String, CaseIterable {
+    case uk, en
+    case de, fr, es, pt, no, esGT = "es_GT"
+    case quc
+}
+
+extension Language {
+    /// Short label shown on the language-switch key.
+    var keyLabel: String {
+        switch self {
+        case .uk:   return "УК"
+        case .en:   return "EN"
+        case .de:   return "DE"
+        case .fr:   return "FR"
+        case .es:   return "ES"
+        case .pt:   return "PT"
+        case .no:   return "NO"
+        case .esGT: return "GT"
+        case .quc:  return "Q'"
+        }
+    }
+
+    /// BCP 47 locale to auto-enable diacritics for when this language is active. Nil = no auto-diacritics.
+    var diacriticsLocale: String? {
+        switch self {
+        case .de:          return "de"
+        case .fr:          return "fr"
+        case .es, .esGT:   return "es"
+        case .pt:          return "pt"
+        case .no:          return "no"
+        default:           return nil
+        }
+    }
+
+    /// Display name for Settings.
+    var displayName: String {
+        switch self {
+        case .uk:   return "Ukrainian (УК)"
+        case .en:   return "English (EN)"
+        case .de:   return "German (DE)"
+        case .fr:   return "French (FR)"
+        case .es:   return "Spanish (ES)"
+        case .pt:   return "Portuguese (PT)"
+        case .no:   return "Norwegian (NO)"
+        case .esGT: return "Guatemalan Spanish (GT)"
+        case .quc:  return "K'iche' Maya (Q')"
+        }
+    }
+}
 
 enum KeyAction {
     case character(String)
@@ -27,15 +76,38 @@ struct KeyDef {
     }
 }
 
-import UIKit
-
 enum KeyboardLayout {
 
     static func layout(for language: Language, shifted: Bool) -> [[KeyDef]] {
         switch language {
-        case .uk: return shifted ? ukShifted : ukNormal
-        case .en: return shifted ? enShifted : enNormal
+        case .uk:  return shifted ? ukShifted : ukNormal
+        case .en:  return shifted ? enShifted : enNormal
+        case .quc: return shifted ? qucShifted : qucNormal
+        // All Latin European languages share QWERTY + diacritics strip
+        default:   return latinQwerty(label: language.keyLabel, shifted: shifted)
         }
+    }
+
+    // MARK: - Factory: Latin QWERTY (DE, FR, ES, PT, NO, ES_GT)
+
+    private static func latinQwerty(label: String, shifted: Bool) -> [[KeyDef]] {
+        let r1 = "qwertyuiop"
+        let r2 = "asdfghjkl"
+        let r3 = "zxcvbnm"
+        func c(_ s: String) -> String { shifted ? s.uppercased() : s }
+        return [
+            r1.map { .init(c(String($0)), .character(c(String($0)))) },
+            r2.map { .init(c(String($0)), .character(c(String($0)))) },
+            [.init("⇧", .shift, weight: 1.5, special: true)] +
+            r3.map { .init(c(String($0)), .character(c(String($0)))) } +
+            [.init("⌫", .backspace, weight: 1.5, special: true)],
+            [.init("123", .symbols, weight: 1.2, special: true),
+             .init(label, .langSwitch, special: true),
+             .init(" ", .space, weight: 4.5, special: true),
+             .init(".", .character(".")),
+             .init("Tr", .translit, special: true),
+             .init("⏎", .enter, weight: 1.3, special: true)],
+        ]
     }
 
     // MARK: - Ukrainian ЙЦУКЕН
@@ -127,6 +199,52 @@ enum KeyboardLayout {
          .init(" ",.space,weight:4.5,special:true),
          .init(".",.character(".")),
          .init("Tr",.translit,special:true),
+         .init("⏎",.enter,weight:1.3,special:true)],
+    ]
+
+    // MARK: - K'iche' (QUC)
+
+    static let qucNormal: [[KeyDef]] = [
+        [.init("q",.character("q")), .init("w",.character("w")), .init("e",.character("e")),
+         .init("r",.character("r")), .init("t",.character("t")), .init("y",.character("y")),
+         .init("u",.character("u")), .init("i",.character("i")), .init("o",.character("o")),
+         .init("p",.character("p"))],
+        [.init("a",.character("a")), .init("s",.character("s")), .init("j",.character("j")),
+         .init("f",.character("f")), .init("g",.character("g")), .init("h",.character("h")),
+         .init("'",.character("'")), .init("k",.character("k")), .init("l",.character("l"))],
+        [.init("⇧",.shift,weight:1.3,special:true),
+         .init("ch",.character("ch"),weight:1.4),
+         .init("tz",.character("tz"),weight:1.4),
+         .init("xh",.character("xh"),weight:1.4),
+         .init("z",.character("z")), .init("x",.character("x")),
+         .init("b",.character("b")), .init("n",.character("n")), .init("m",.character("m")),
+         .init("⌫",.backspace,weight:1.3,special:true)],
+        [.init("123",.symbols,weight:1.2,special:true),
+         .init("Q'",.langSwitch,special:true),
+         .init(" ",.space,weight:4.0,special:true),
+         .init(".",.character(".")),
+         .init("⏎",.enter,weight:1.3,special:true)],
+    ]
+
+    static let qucShifted: [[KeyDef]] = [
+        [.init("Q",.character("Q")), .init("W",.character("W")), .init("E",.character("E")),
+         .init("R",.character("R")), .init("T",.character("T")), .init("Y",.character("Y")),
+         .init("U",.character("U")), .init("I",.character("I")), .init("O",.character("O")),
+         .init("P",.character("P"))],
+        [.init("A",.character("A")), .init("S",.character("S")), .init("J",.character("J")),
+         .init("F",.character("F")), .init("G",.character("G")), .init("H",.character("H")),
+         .init("'",.character("'")), .init("K",.character("K")), .init("L",.character("L"))],
+        [.init("⇧",.shift,weight:1.3,special:true),
+         .init("Ch",.character("Ch"),weight:1.4),
+         .init("Tz",.character("Tz"),weight:1.4),
+         .init("Xh",.character("Xh"),weight:1.4),
+         .init("Z",.character("Z")), .init("X",.character("X")),
+         .init("B",.character("B")), .init("N",.character("N")), .init("M",.character("M")),
+         .init("⌫",.backspace,weight:1.3,special:true)],
+        [.init("123",.symbols,weight:1.2,special:true),
+         .init("Q'",.langSwitch,special:true),
+         .init(" ",.space,weight:4.0,special:true),
+         .init(".",.character(".")),
          .init("⏎",.enter,weight:1.3,special:true)],
     ]
 

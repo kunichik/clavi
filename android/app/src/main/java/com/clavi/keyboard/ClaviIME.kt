@@ -1,6 +1,9 @@
 package com.clavi.keyboard
 
 import android.inputmethodservice.InputMethodService
+import android.os.Handler
+import android.os.Looper
+import android.text.InputType
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.Toast
@@ -29,9 +32,24 @@ class ClaviIME : InputMethodService(),
     private var translitMode = false
     private var symbolsMode = false
 
-    // Active diacritics locale (null = diacritics off)
-    // Set this to e.g. "pt", "de", "fr" to enable the smart diacritics strip
+    // Language rotation: only cycle through languages the user enabled in Settings
+    private var activeLanguages: List<Language> = listOf(Language.UK, Language.EN)
+    private var currentLangIndex: Int = 0
+
+    // Diacritics: userLocale = value from Settings; diacriticsLocale = current effective value
+    // (may be auto-set when switching to a European language)
+    private var userDiacriticsLocale: String? = null
     private var diacriticsLocale: String? = null
+
+    // Translation engine — null when translation is disabled in settings
+    private var translationEngine: TranslationEngine? = null
+
+    // Word prediction engine — always available for EN and UK
+    private lateinit var predictionEngine: WordPredictionEngine
+
+    // Emoji panel — lazy, created once and reused
+    private var emojiPanel: EmojiPanel? = null
+    private lateinit var keyboardContainer: android.widget.FrameLayout
 
     private val translitBuffer = StringBuilder()
 
@@ -43,27 +61,63 @@ class ClaviIME : InputMethodService(),
 
         // Load preferences
         val prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE)
-        diacriticsLocale = prefs.getString(SettingsActivity.PREF_DIACRITICS_LOCALE, null)
+        userDiacriticsLocale = prefs.getString(SettingsActivity.PREF_DIACRITICS_LOCALE, null)
+        diacriticsLocale = userDiacriticsLocale
         val savedLang = prefs.getString(SettingsActivity.PREF_DEFAULT_LANGUAGE, Language.UK.name)
         currentLanguage = Language.entries.firstOrNull { it.name == savedLang } ?: Language.UK
         keyboardView.hapticEnabled = prefs.getBoolean(SettingsActivity.PREF_HAPTIC, true)
+        activeLanguages = SettingsActivity.loadActiveLanguages(prefs)
+        currentLangIndex = activeLanguages.indexOf(currentLanguage).coerceAtLeast(0)
+        val transSrc = prefs.getString(SettingsActivity.PREF_TRANSLATION_SOURCE, null)
+        val transTgt = prefs.getString(SettingsActivity.PREF_TRANSLATION_TARGET, null)
+        translationEngine = if (transSrc != null && transTgt != null)
+            TranslationEngine(transSrc, transTgt, this) else null
+
+        predictionEngine = WordPredictionEngine(this)
 
         keyboardView = ClaviKeyboardView(this)
         keyboardView.listener = this
         keyboardView.stripListener = this
         updateKeyboardLayout()
 
+        // Wrap in FrameLayout so EmojiPanel can overlay the keyboard
+        keyboardContainer = android.widget.FrameLayout(this).apply {
+            layoutParams = android.view.ViewGroup.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+        keyboardContainer.addView(keyboardView, android.widget.FrameLayout.LayoutParams(
+            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+            android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
+        ))
+
         clipboardHistory.startListening()
-        return keyboardView
+        return keyboardContainer
     }
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         translitBuffer.clear()
         updateKeyboardLayout()
-        // Refresh strip in case clipboard changed while keyboard was hidden
-        keyboardView.clipItems = clipboardHistory.getRecent()
-            .map { clipboardHistory.displayLabel(it) }
+
+        // Password field detection: hide clipboard strip and disable translit for privacy
+        val inputType = info?.inputType ?: 0
+        val variation = inputType and InputType.TYPE_MASK_VARIATION
+        val isPassword = (inputType and InputType.TYPE_MASK_CLASS) == InputType.TYPE_CLASS_TEXT &&
+            (variation == InputType.TYPE_TEXT_VARIATION_PASSWORD ||
+             variation == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD ||
+             variation == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD)
+        if (isPassword) {
+            keyboardView.clipItems = emptyList()
+            keyboardView.translationSuggestion = null
+            keyboardView.predictionItems = emptyList()
+            if (translitMode) handleTranslitToggle()
+        } else {
+            // Refresh strip in case clipboard changed while keyboard was hidden
+            keyboardView.clipItems = clipboardHistory.getRecent()
+                .map { clipboardHistory.displayLabel(it) }
+        }
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
@@ -115,6 +169,49 @@ class ClaviIME : InputMethodService(),
         keyboardView.fixSuggestion = null
     }
 
+    override fun onTranslationTap(suggestion: TranslationEngine.TranslationSuggestion) {
+        val ic = currentInputConnection ?: return
+        ic.deleteSurroundingText(suggestion.original.length, 0)
+        ic.commitText(suggestion.translated, 1)
+        keyboardView.translationSuggestion = null
+    }
+
+    override fun onTranslationDismiss() {
+        keyboardView.translationSuggestion = null
+    }
+
+    override fun onPredictionTap(word: String) {
+        val ic = currentInputConnection ?: return
+        ic.commitText("$word ", 1)
+        // Predict the next word immediately based on what was just tapped
+        updatePredictions("$word ")
+        if (shifted && !capsLock) { shifted = false; updateKeyboardLayout() }
+    }
+
+    override fun onSpaceLongPress() {
+        val prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE)
+        val panel = EmojiPanel(this, prefs).apply {
+            layoutParams = android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT
+            )
+            onEmojiSelected = { emoji ->
+                currentInputConnection?.commitText(emoji, 1)
+                hideEmojiPanel()
+            }
+            onDismiss = { hideEmojiPanel() }
+        }
+        emojiPanel = panel
+        keyboardContainer.addView(panel)
+        keyboardView.visibility = android.view.View.INVISIBLE
+    }
+
+    private fun hideEmojiPanel() {
+        emojiPanel?.let { keyboardContainer.removeView(it) }
+        emojiPanel = null
+        keyboardView.visibility = android.view.View.VISIBLE
+    }
+
     // ── ClaviKeyboardView.OnKeyListener ──
 
     override fun onKey(key: Key) {
@@ -140,16 +237,33 @@ class ClaviIME : InputMethodService(),
             flushTranslitBuffer(force = false)
             clearDiacritics()
             keyboardView.fixSuggestion = null
+            keyboardView.predictionItems = emptyList()
         } else {
             ic.commitText(text, 1)
             // Show diacritics strip if this letter has variants in the active locale
             showDiacriticsIfNeeded(text)
-            // After space: run fix analysis on the text before cursor
-            if (text == " ") {
+            // After space or newline: run fix + translation + prediction
+            if (text == " " || text == "\n") {
                 val textBefore = ic.getTextBeforeCursor(200, 0)?.toString() ?: ""
-                keyboardView.fixSuggestion = TextFixEngine.analyze(textBefore)
+                val fix = TextFixEngine.analyze(textBefore)
+                keyboardView.fixSuggestion = fix
+                if (fix == null) {
+                    keyboardView.translationSuggestion = null
+                    translationEngine?.translate(textBefore) { suggestion ->
+                        Handler(Looper.getMainLooper()).post {
+                            keyboardView.translationSuggestion = suggestion
+                        }
+                    }
+                    // Show word predictions (shown when translation is also null)
+                    updatePredictions(textBefore)
+                } else {
+                    keyboardView.translationSuggestion = null
+                    keyboardView.predictionItems = emptyList()
+                }
             } else {
                 keyboardView.fixSuggestion = null
+                keyboardView.translationSuggestion = null
+                keyboardView.predictionItems = emptyList()
             }
         }
 
@@ -176,6 +290,7 @@ class ClaviIME : InputMethodService(),
 
     /** Call this to enable/disable the diacritics strip. locale = "pt", "de", "fr", etc. or null to disable. */
     fun setDiacriticsLocale(locale: String?) {
+        userDiacriticsLocale = locale
         diacriticsLocale = locale
         clearDiacritics()
     }
@@ -196,10 +311,17 @@ class ClaviIME : InputMethodService(),
         }
     }
 
+    private fun updatePredictions(textBefore: String) {
+        val predictions = predictionEngine.predict(textBefore, currentLanguage)
+        keyboardView.predictionItems = predictions
+    }
+
     private fun handleBackspace() {
         val ic = currentInputConnection ?: return
         clearDiacritics()
         keyboardView.fixSuggestion = null
+        keyboardView.translationSuggestion = null
+        keyboardView.predictionItems = emptyList()
         if (translitBuffer.isNotEmpty()) {
             translitBuffer.deleteCharAt(translitBuffer.length - 1)
         } else {
@@ -225,16 +347,17 @@ class ClaviIME : InputMethodService(),
 
     private fun handleLanguageSwitch() {
         flushTranslitBuffer(force = true)
-        currentLanguage = when (currentLanguage) {
-            Language.UK  -> Language.EN
-            Language.EN  -> Language.QUC
-            Language.QUC -> Language.UK
-        }
-        shifted = false
-        capsLock = false
-        symbolsMode = false
-        if (translitMode && currentLanguage == Language.QUC) {
-            translitMode = false  // translit not applicable for K'iche'
+        currentLangIndex = (currentLangIndex + 1) % activeLanguages.size
+        currentLanguage = activeLanguages[currentLangIndex]
+
+        // Auto-enable the appropriate diacritics locale for European languages,
+        // restore user's Setting when switching back to UK/EN/QUC
+        diacriticsLocale = currentLanguage.diacriticsLocale ?: userDiacriticsLocale
+
+        shifted = false; capsLock = false; symbolsMode = false
+        // Translit only applies when typing Latin to get Ukrainian (UK target, EN source)
+        if (translitMode && currentLanguage != Language.EN) {
+            translitMode = false
         }
         updateKeyboardLayout()
     }
