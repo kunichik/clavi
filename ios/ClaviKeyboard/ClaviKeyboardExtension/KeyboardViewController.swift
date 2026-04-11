@@ -307,6 +307,23 @@ extension KeyboardViewController: ClaviKeyboardViewDelegate {
         keyboardView.translationSuggestion = nil
     }
 
+    func didRequestEmojiPanel() {
+        let panel = EmojiPanel()
+        panel.translatesAutoresizingMaskIntoConstraints = false
+        panel.onEmojiSelected = { [weak self, weak panel] emoji in
+            self?.textDocumentProxy.insertText(emoji)
+            panel?.removeFromSuperview()
+        }
+        panel.onDismiss = { [weak panel] in panel?.removeFromSuperview() }
+        view.addSubview(panel)
+        NSLayoutConstraint.activate([
+            panel.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            panel.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            panel.topAnchor.constraint(equalTo: view.topAnchor),
+            panel.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
+    }
+
     func didTapPrediction(_ word: String) {
         textDocumentProxy.insertText(word + " ")
         // Re-predict based on word just tapped

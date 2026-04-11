@@ -11,6 +11,7 @@ protocol ClaviKeyboardViewDelegate: AnyObject {
     func didTapTranslation(_ suggestion: TranslationEngine.TranslationSuggestion)
     func didDismissTranslation()
     func didTapPrediction(_ word: String)
+    func didRequestEmojiPanel()
     func didTapNextKeyboard()
 }
 
@@ -491,6 +492,12 @@ class ClaviKeyboardView: UIView {
 
                 if case .translit = key.action { translitButton = btn }
                 if case .langSwitch = key.action { langButton = btn }
+                // Long-press on space → emoji panel
+                if case .space = key.action {
+                    let lp = UILongPressGestureRecognizer(target: self, action: #selector(spaceLongPressed(_:)))
+                    lp.minimumPressDuration = 0.5
+                    btn.addGestureRecognizer(lp)
+                }
                 btn.tag = rowIdx * 100 + (row.firstIndex(where: { $0.label == key.label }) ?? 0)
             }
         }
@@ -539,6 +546,12 @@ class ClaviKeyboardView: UIView {
         guard let key = keyButtons[sender] else { return }
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         delegate?.didTapKey(key)
+    }
+
+    @objc private func spaceLongPressed(_ gr: UILongPressGestureRecognizer) {
+        guard gr.state == .began else { return }
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        delegate?.didRequestEmojiPanel()
     }
 
     private func updateTranslitButton() {

@@ -47,6 +47,10 @@ class ClaviIME : InputMethodService(),
     // Word prediction engine — always available for EN and UK
     private lateinit var predictionEngine: WordPredictionEngine
 
+    // Emoji panel — lazy, created once and reused
+    private var emojiPanel: EmojiPanel? = null
+    private lateinit var keyboardContainer: android.widget.FrameLayout
+
     private val translitBuffer = StringBuilder()
 
     // ── Lifecycle ──
@@ -76,8 +80,20 @@ class ClaviIME : InputMethodService(),
         keyboardView.stripListener = this
         updateKeyboardLayout()
 
+        // Wrap in FrameLayout so EmojiPanel can overlay the keyboard
+        keyboardContainer = android.widget.FrameLayout(this).apply {
+            layoutParams = android.view.ViewGroup.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+        keyboardContainer.addView(keyboardView, android.widget.FrameLayout.LayoutParams(
+            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+            android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
+        ))
+
         clipboardHistory.startListening()
-        return keyboardView
+        return keyboardContainer
     }
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
@@ -170,6 +186,30 @@ class ClaviIME : InputMethodService(),
         // Predict the next word immediately based on what was just tapped
         updatePredictions("$word ")
         if (shifted && !capsLock) { shifted = false; updateKeyboardLayout() }
+    }
+
+    override fun onSpaceLongPress() {
+        val prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE)
+        val panel = EmojiPanel(this, prefs).apply {
+            layoutParams = android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT
+            )
+            onEmojiSelected = { emoji ->
+                currentInputConnection?.commitText(emoji, 1)
+                hideEmojiPanel()
+            }
+            onDismiss = { hideEmojiPanel() }
+        }
+        emojiPanel = panel
+        keyboardContainer.addView(panel)
+        keyboardView.visibility = android.view.View.INVISIBLE
+    }
+
+    private fun hideEmojiPanel() {
+        emojiPanel?.let { keyboardContainer.removeView(it) }
+        emojiPanel = null
+        keyboardView.visibility = android.view.View.VISIBLE
     }
 
     // ── ClaviKeyboardView.OnKeyListener ──

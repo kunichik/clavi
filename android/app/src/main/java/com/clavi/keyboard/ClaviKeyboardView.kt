@@ -29,6 +29,7 @@ class ClaviKeyboardView @JvmOverloads constructor(
 
     interface OnKeyListener {
         fun onKey(key: Key)
+        fun onSpaceLongPress()
     }
 
     interface OnStripListener {
@@ -108,6 +109,16 @@ class ClaviKeyboardView @JvmOverloads constructor(
     // Long press detection for clip chips
     private val longPressHandler = Handler(Looper.getMainLooper())
     private var longPressPending = false
+
+    // Long press detection for space key → emoji panel
+    private var spaceLongPressPending = false
+    private val spaceLongPressRunnable = Runnable {
+        spaceLongPressPending = false
+        pressedKey = null
+        invalidate()
+        performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+        listener?.onSpaceLongPress()
+    }
     private var longPressChipIndex = -1
     private val longPressRunnable = Runnable {
         val idx = longPressChipIndex
@@ -616,6 +627,11 @@ class ClaviKeyboardView @JvmOverloads constructor(
                     pressedKey = hit.second
                     invalidate()
                     if (hapticEnabled) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    // Long-press on space → emoji panel
+                    if (hit.second.code == KeyboardLayout.KEYCODE_SPACE) {
+                        spaceLongPressPending = true
+                        longPressHandler.postDelayed(spaceLongPressRunnable, 600)
+                    }
                 }
                 return true
             }
@@ -659,7 +675,13 @@ class ClaviKeyboardView @JvmOverloads constructor(
                     stripListener?.onStripClear()
                     return true
                 }
-                pressedKey?.let { listener?.onKey(it) }
+                longPressHandler.removeCallbacks(spaceLongPressRunnable)
+                if (spaceLongPressPending) {
+                    spaceLongPressPending = false
+                    pressedKey?.let { listener?.onKey(it) }
+                } else {
+                    pressedKey?.let { listener?.onKey(it) }
+                }
                 pressedKey = null
                 invalidate()
                 return true
@@ -667,6 +689,8 @@ class ClaviKeyboardView @JvmOverloads constructor(
 
             MotionEvent.ACTION_CANCEL -> {
                 longPressHandler.removeCallbacks(longPressRunnable)
+                longPressHandler.removeCallbacks(spaceLongPressRunnable)
+                spaceLongPressPending = false
                 pressedKey = null
                 pressedChipIndex = -1
                 longPressPending = false
