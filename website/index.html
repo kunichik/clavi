@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clavi — Type in any language</title>
+  <meta name="description" content="Cross-platform keyboard layout switcher and language bridge. Ukrainian ↔ English, automatic, silent, no cloud.">
+  <meta property="og:title" content="Clavi — Type in any language">
+  <meta property="og:description" content="Auto-detects wrong keyboard layout. Transliterates phonetically. Works on Linux, macOS, Windows, Android and iOS.">
+  <meta property="og:url" content="https://clavi.dev">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="logo">
+      <span class="logo-icon">⌨</span>
+      <span class="logo-text">clavi</span>
+    </a>
+    <div class="nav-links">
+      <a href="#features" data-i18n="nav_features">Features</a>
+      <a href="#platforms" data-i18n="nav_platforms">Platforms</a>
+      <a href="https://github.com/kunichik/clavi" target="_blank" rel="noopener">GitHub</a>
+      <a href="#download" class="btn-nav" data-i18n="nav_download">Download</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="badge" data-i18n="badge_hero">Open source · GPLv3 · No telemetry</div>
+    <h1 data-i18n="hero_h1">Type in any language.<br><span class="accent">Clavi handles the rest.</span></h1>
+    <p class="hero-sub" data-i18n="hero_sub">
+      You type <code>ghbdsn</code> with English layout active —
+      Clavi silently corrects it to <code class="uk">привіт</code>. Instantly.
+      No copy-paste. No retyping. No accounts.
+    </p>
+    <div class="hero-cta">
+      <a href="#download" class="btn-primary" data-i18n="btn_download">Download free</a>
+      <a href="https://github.com/kunichik/clavi" class="btn-ghost" target="_blank" rel="noopener" data-i18n="btn_github">
+        View on GitHub
+      </a>
+    </div>
+    <p class="hero-note" data-i18n="hero_note">Linux · macOS · Windows · Android · iOS</p>
+  </div>
+
+  <!-- Demo animation -->
+  <div class="demo-wrap">
+    <div class="demo-box">
+      <div class="demo-label" data-i18n="demo_without">Without Clavi</div>
+      <div class="demo-row">
+        <span class="demo-wrong">ghbdsn vfif</span>
+        <span class="demo-arrow">→</span>
+        <span class="demo-wrong">ghbdsn vfif</span>
+        <span class="demo-tag bad" data-i18n="demo_bad">wrong layout</span>
+      </div>
+      <div class="demo-label" style="margin-top:24px" data-i18n="demo_with">With Clavi</div>
+      <div class="demo-row">
+        <span class="demo-wrong">ghbdsn vfif</span>
+        <span class="demo-arrow clavi-arrow">→</span>
+        <span class="demo-correct">привіт мамо</span>
+        <span class="demo-tag good" data-i18n="demo_good">auto-fixed ✓</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="features" id="features">
+  <div class="container">
+    <h2 data-i18n="feat_h2">Built for people who type in two languages</h2>
+    <p class="section-sub" data-i18n="feat_sub">Ukrainian diaspora. Bilingual teams. Developers who switch constantly.</p>
+
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-icon">🔍</div>
+        <h3 data-i18n="feat1_h">Auto-detection</h3>
+        <p data-i18n="feat1_p">3-layer engine: dictionary lookup → n-gram statistics → on-device LLM. Detects wrong layout in under 1 ms for 95% of cases. Never guesses on short words.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔤</div>
+        <h3 data-i18n="feat2_h">Translit mode</h3>
+        <p data-i18n="feat2_p">Press <kbd>Ctrl+T</kbd>, type Latin phonetically — get Ukrainian Cyrillic. <em>pryvit</em> → <em class="uk">привіт</em>. KMU 2010 standard. Works offline, forever.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">↩</div>
+        <h3 data-i18n="feat3_h">Always reversible</h3>
+        <p data-i18n="feat3_p">Every correction shows a toast: <em>"Clavi: switched to Укр → [Ctrl+Z]"</em>. Undo in one key. Full undo stack of 10 actions.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📋</div>
+        <h3 data-i18n="feat4_h">Clipboard history</h3>
+        <p data-i18n="feat4_p">Mobile keyboards hide clipboard. Clavi exposes it as a scrollable strip above the keyboard. Tap to paste any of the last 20 items.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔡</div>
+        <h3 data-i18n="feat5_h">Smart diacritics</h3>
+        <p data-i18n="feat5_p">Type a base letter — get a strip of variants: <em>ã â á à a</em>. One tap, no long-press. Frequency-ordered for PT, DE, FR, NO, ES.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">✏️</div>
+        <h3 data-i18n="feat6_h">Text fix</h3>
+        <p data-i18n="feat6_p">Catches obvious typos after each space: double space, missing apostrophe, repeated chars. <em>Fix, don't rewrite</em> — never changes your words or tone.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MOBILE -->
+<section class="mobile-section" id="mobile">
+  <div class="container two-col">
+    <div class="mobile-text">
+      <div class="badge badge-teal" data-i18n="mobile_badge">Mobile · Android &amp; iOS</div>
+      <h2 data-i18n="mobile_h2">A full keyboard that understands your language</h2>
+      <p data-i18n="mobile_p">On mobile, Clavi is the keyboard. Ukrainian ЙЦУКЕН + English QWERTY in one app. Switch layouts with one tap. Type Latin — get Cyrillic instantly.</p>
+      <ul class="feature-list">
+        <li data-i18n="mobile_f1">Ukrainian &amp; English layouts with one-tap switch</li>
+        <li data-i18n="mobile_f2">Transliteration: type <em>pryvit</em> → get <em class="uk">привіт</em></li>
+        <li data-i18n="mobile_f3">Clipboard history strip above keyboard</li>
+        <li data-i18n="mobile_f4">Diacritic variants: no long-press needed</li>
+        <li data-i18n="mobile_f5">Word predictions &amp; translation strip</li>
+        <li data-i18n="mobile_f6">Emoji panel on long-press space</li>
+      </ul>
+    </div>
+    <div class="mobile-visual">
+      <div class="phone-mock">
+        <div class="phone-screen">
+          <div class="phone-textfield">привіт мамо, як ти?</div>
+          <div class="phone-strip">
+            <span class="strip-chip active">привіт</span>
+            <span class="strip-chip">мамо</span>
+            <span class="strip-chip">як</span>
+          </div>
+          <div class="phone-keyboard">
+            <div class="phone-row">
+              <div class="phone-key">й</div><div class="phone-key">ц</div><div class="phone-key">у</div>
+              <div class="phone-key">к</div><div class="phone-key">е</div><div class="phone-key">н</div>
+              <div class="phone-key">г</div><div class="phone-key">ш</div><div class="phone-key">щ</div>
+              <div class="phone-key">з</div>
+            </div>
+            <div class="phone-row">
+              <div class="phone-key">ф</div><div class="phone-key">і</div><div class="phone-key">в</div>
+              <div class="phone-key">а</div><div class="phone-key">п</div><div class="phone-key">р</div>
+              <div class="phone-key">о</div><div class="phone-key">л</div><div class="phone-key">д</div>
+            </div>
+            <div class="phone-row">
+              <div class="phone-key special">⇧</div>
+              <div class="phone-key">я</div><div class="phone-key">ч</div><div class="phone-key">с</div>
+              <div class="phone-key">м</div><div class="phone-key">и</div><div class="phone-key">т</div>
+              <div class="phone-key special">⌫</div>
+            </div>
+            <div class="phone-row">
+              <div class="phone-key special sm">UK</div>
+              <div class="phone-key space">пробіл</div>
+              <div class="phone-key special sm">↵</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRIVACY -->
+<section class="privacy-section">
+  <div class="container">
+    <div class="privacy-card">
+      <div class="privacy-icon">🔒</div>
+      <div>
+        <h3 data-i18n="privacy_h">Your keystrokes never leave your device</h3>
+        <p data-i18n="privacy_p">No telemetry. No cloud processing. No accounts required. All detection runs locally — dictionary lookup, n-gram model, and on-device LLM. Open source so you can verify it yourself.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PLATFORMS -->
+<section class="platforms" id="platforms">
+  <div class="container">
+    <h2 data-i18n="plat_h2">Every platform. One keyboard habit.</h2>
+    <div class="platform-grid">
+      <div class="platform-card">
+        <div class="platform-icon">🐧</div>
+        <h3>Linux</h3>
+        <p data-i18n="plat_linux_p">X11 &amp; Wayland. System tray icon. <code>apt install</code> coming soon.</p>
+        <span class="platform-badge free" data-i18n="badge_free">Free forever</span>
+      </div>
+      <div class="platform-card">
+        <div class="platform-icon"></div>
+        <h3>macOS</h3>
+        <p data-i18n="plat_mac_p">Native daemon. Runs silently in menu bar. Universal binary (Apple Silicon + Intel).</p>
+        <span class="platform-badge free" data-i18n="badge_free">Free forever</span>
+      </div>
+      <div class="platform-card">
+        <div class="platform-icon">🪟</div>
+        <h3>Windows</h3>
+        <p data-i18n="plat_win_p">System tray, auto-start. Works with any app — browser, Word, Slack.</p>
+        <span class="platform-badge free" data-i18n="badge_free">Free forever</span>
+      </div>
+      <div class="platform-card">
+        <div class="platform-icon">🤖</div>
+        <h3>Android</h3>
+        <p data-i18n="plat_android_p">Full custom IME. Ukrainian ЙЦУКЕН + English QWERTY. Translit, clipboard, diacritics.</p>
+        <span class="platform-badge soon" data-i18n="badge_play">Coming to Play Store</span>
+      </div>
+      <div class="platform-card">
+        <div class="platform-icon"></div>
+        <h3>iOS</h3>
+        <p data-i18n="plat_ios_p">Custom Keyboard Extension. Same features as Android. Clipboard requires Full Access.</p>
+        <span class="platform-badge soon" data-i18n="badge_appstore">Coming to App Store</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- LANGUAGE PACKS -->
+<section class="packs-section">
+  <div class="container">
+    <h2 data-i18n="packs_h2">Language packs — all free, community-driven</h2>
+    <p class="section-sub" data-i18n="packs_sub">Licensed under CC BY-SA 4.0. Contribute your language — millions of speakers benefit.</p>
+    <div class="pack-grid">
+      <div class="pack-chip active">🇺🇦 Ukrainian</div>
+      <div class="pack-chip active">🇬🇧 English</div>
+      <div class="pack-chip planned">🇩🇪 German</div>
+      <div class="pack-chip planned">🇫🇷 French</div>
+      <div class="pack-chip planned">🇵🇹 Portuguese</div>
+      <div class="pack-chip planned">🇳🇴 Norwegian</div>
+      <div class="pack-chip planned">🇪🇸 Spanish</div>
+      <div class="pack-chip planned">🇬🇹 K'iche'</div>
+      <a href="https://github.com/kunichik/clavi/blob/main/CONTRIBUTING.md"
+         class="pack-chip contribute" target="_blank" rel="noopener"
+         data-i18n="pack_contribute">+ Add yours</a>
+    </div>
+  </div>
+</section>
+
+<!-- DOWNLOAD -->
+<section class="download-section" id="download">
+  <div class="container">
+    <h2 data-i18n="dl_h2">Get Clavi</h2>
+    <div class="download-grid">
+      <div class="download-card">
+        <h3 data-i18n="dl_desktop_h">🐧 Linux / macOS / Windows</h3>
+        <p data-i18n="dl_desktop_p">Build from source — CMake 3.25+ and a C++20 compiler.</p>
+        <div class="code-block">
+          <code>git clone --recurse-submodules https://github.com/kunichik/clavi</code><br>
+          <code>cd clavi && cmake --preset default && cmake --build build</code>
+        </div>
+        <a href="https://github.com/kunichik/clavi/releases" class="btn-download" target="_blank" rel="noopener" data-i18n="dl_desktop_btn">Releases on GitHub</a>
+      </div>
+      <div class="download-card">
+        <h3 data-i18n="dl_android_h">🤖 Android</h3>
+        <p data-i18n="dl_android_p">APK coming soon to Google Play. For now — build from source.</p>
+        <div class="code-block">
+          <code>cd android && ./gradlew assembleDebug</code>
+        </div>
+        <a href="https://github.com/kunichik/clavi" class="btn-download disabled" target="_blank" rel="noopener" data-i18n="dl_android_btn">Google Play — coming soon</a>
+      </div>
+      <div class="download-card">
+        <h3 data-i18n="dl_ios_h"> iOS</h3>
+        <p data-i18n="dl_ios_p">App Store submission in progress. Build with Xcode 15+.</p>
+        <div class="code-block">
+          <code>open ios/ClaviKeyboard/ClaviKeyboard.xcodeproj</code>
+        </div>
+        <a href="https://github.com/kunichik/clavi" class="btn-download disabled" target="_blank" rel="noopener" data-i18n="dl_ios_btn">App Store — coming soon</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container footer-inner">
+    <div class="footer-logo">
+      <span class="logo-icon">⌨</span>
+      <span class="logo-text">clavi</span>
+      <span class="footer-sub" data-i18n="footer_tagline">from Latin <em>clavis</em> = key</span>
+    </div>
+    <div class="footer-links">
+      <a href="https://github.com/kunichik/clavi" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/kunichik/clavi/blob/main/LICENSE" target="_blank" rel="noopener" data-i18n="footer_license">GPLv3</a>
+      <a href="https://github.com/kunichik/clavi/issues" target="_blank" rel="noopener" data-i18n="footer_issues">Issues</a>
+    </div>
+  </div>
+</footer>
+
+<script src="i18n.js"></script>
+</body>
+</html>
