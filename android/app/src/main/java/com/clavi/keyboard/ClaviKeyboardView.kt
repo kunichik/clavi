@@ -51,23 +51,23 @@ class ClaviKeyboardView @JvmOverloads constructor(
 
     // Clipboard strip data — set from ClaviIME
     var clipItems: List<String> = emptyList()
-        set(value) { field = value; if (diacriticItems.isEmpty() && fixSuggestion == null) invalidate() }
+        set(value) { field = value; invalidate() }
 
     // Diacritics suggestion strip — overrides clipboard strip when non-empty
     var diacriticItems: List<String> = emptyList()
-        set(value) { field = value; requestLayout(); invalidate() }
+        set(value) { field = value; invalidate() }
 
     // Text fix suggestion — highest priority, overrides all other strips
     var fixSuggestion: TextFixEngine.Fix? = null
-        set(value) { field = value; requestLayout(); invalidate() }
+        set(value) { field = value; invalidate() }
 
     // Translation suggestion — second priority (after fix)
     var translationSuggestion: TranslationEngine.TranslationSuggestion? = null
-        set(value) { field = value; requestLayout(); invalidate() }
+        set(value) { field = value; invalidate() }
 
     // Word predictions — shown when no reactive strip is active
     var predictionItems: List<String> = emptyList()
-        set(value) { field = value; requestLayout(); invalidate() }
+        set(value) { field = value; invalidate() }
 
     // Strip priority: fix > translation > diacritics > predictions > clipboard
     private val stripShowsFix         get() = fixSuggestion != null
@@ -109,6 +109,9 @@ class ClaviKeyboardView @JvmOverloads constructor(
     // Long press detection for clip chips
     private val longPressHandler = Handler(Looper.getMainLooper())
     private var longPressPending = false
+
+    // Long press detection for backspace key → repeat deletion
+    private var backspaceRepeatRunnable: Runnable? = null
 
     // Long press detection for space key → emoji panel
     private var spaceLongPressPending = false
@@ -192,10 +195,8 @@ class ClaviKeyboardView @JvmOverloads constructor(
         val rp = rowPadding * density
         val keysH = (keyHeight * rowCount + rp * (rowCount + 1)).toInt()
 
-        // Strip height: 40dp when any strip type has content, 0 otherwise
-        stripHeight = if (clipItems.isNotEmpty() || diacriticItems.isNotEmpty() ||
-                         fixSuggestion != null || translationSuggestion != null ||
-                         predictionItems.isNotEmpty()) 40f * density else 0f
+        // Strip height: always 40dp so the input field never jumps
+        stripHeight = 40f * density
 
         setMeasuredDimension(w, keysH + stripHeight.toInt())
     }
@@ -627,10 +628,22 @@ class ClaviKeyboardView @JvmOverloads constructor(
                     pressedKey = hit.second
                     invalidate()
                     if (hapticEnabled) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                    // Long-press on space → emoji panel
-                    if (hit.second.code == KeyboardLayout.KEYCODE_SPACE) {
-                        spaceLongPressPending = true
-                        longPressHandler.postDelayed(spaceLongPressRunnable, 600)
+                    when (hit.second.code) {
+                        KeyboardLayout.KEYCODE_SPACE -> {
+                            spaceLongPressPending = true
+                            longPressHandler.postDelayed(spaceLongPressRunnable, 600)
+                        }
+                        KeyboardLayout.KEYCODE_BACKSPACE -> {
+                            val key = hit.second
+                            val runnable = object : Runnable {
+                                override fun run() {
+                                    listener?.onKey(key)
+                                    longPressHandler.postDelayed(this, 50)
+                                }
+                            }
+                            backspaceRepeatRunnable = runnable
+                            longPressHandler.postDelayed(runnable, 400)
+                        }
                     }
                 }
                 return true
@@ -675,13 +688,13 @@ class ClaviKeyboardView @JvmOverloads constructor(
                     stripListener?.onStripClear()
                     return true
                 }
+                backspaceRepeatRunnable?.let { longPressHandler.removeCallbacks(it) }
+                backspaceRepeatRunnable = null
                 longPressHandler.removeCallbacks(spaceLongPressRunnable)
-                if (spaceLongPressPending) {
-                    spaceLongPressPending = false
-                    pressedKey?.let { listener?.onKey(it) }
-                } else {
+                if (!spaceLongPressPending) {
                     pressedKey?.let { listener?.onKey(it) }
                 }
+                spaceLongPressPending = false
                 pressedKey = null
                 invalidate()
                 return true
@@ -690,6 +703,8 @@ class ClaviKeyboardView @JvmOverloads constructor(
             MotionEvent.ACTION_CANCEL -> {
                 longPressHandler.removeCallbacks(longPressRunnable)
                 longPressHandler.removeCallbacks(spaceLongPressRunnable)
+                backspaceRepeatRunnable?.let { longPressHandler.removeCallbacks(it) }
+                backspaceRepeatRunnable = null
                 spaceLongPressPending = false
                 pressedKey = null
                 pressedChipIndex = -1

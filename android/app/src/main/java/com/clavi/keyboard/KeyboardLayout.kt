@@ -49,6 +49,7 @@ object KeyboardLayout {
     const val KEYCODE_SPACE = 32
     const val KEYCODE_ENTER = -5
     const val KEYCODE_SYMBOLS = -6
+    const val KEYCODE_SYMBOLS2 = -7  // #+= secondary symbols page
 
     fun getLayout(language: Language, shifted: Boolean): List<Row> {
         return when (language) {
@@ -259,9 +260,34 @@ object KeyboardLayout {
             Key("("), Key(")"), Key("="), Key("%"),
         )),
         Row(listOf(
-            Key("ABC", KEYCODE_SYMBOLS, 1.5f, true),
+            Key("#+=", KEYCODE_SYMBOLS2, 1.5f, true),
             Key("!"), Key("\""), Key("'"), Key(":"),
             Key(";"), Key("/"), Key("?"),
+            Key("\u232B", KEYCODE_BACKSPACE, 1.5f, true, "backspace"),
+        )),
+        Row(listOf(
+            Key("ABC", KEYCODE_SYMBOLS, 1.2f, true),
+            Key("EN", KEYCODE_LANG_SWITCH, 1f, true),
+            Key(","),
+            Key(" ", KEYCODE_SPACE, 4f, true),
+            Key("."),
+            Key("\u21B5", KEYCODE_ENTER, 1.3f, true, "enter"),
+        )),
+    )
+
+    fun getSymbolsLayout2(): List<Row> = listOf(
+        Row(listOf(
+            Key("~"), Key("`"), Key("!"), Key("@"), Key("#"),
+            Key("\$"), Key("^"), Key("*"), Key("["), Key("]"),
+        )),
+        Row(listOf(
+            Key("{"), Key("}"), Key("|"), Key("\\"), Key("<"),
+            Key(">"), Key("_"), Key("="), Key("+"),
+        )),
+        Row(listOf(
+            Key("123", KEYCODE_SYMBOLS, 1.5f, true),
+            Key("\""), Key("'"), Key(";"), Key(":"),
+            Key("/"), Key("?"),
             Key("\u232B", KEYCODE_BACKSPACE, 1.5f, true, "backspace"),
         )),
         Row(listOf(

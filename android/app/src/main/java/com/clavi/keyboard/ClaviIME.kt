@@ -31,6 +31,7 @@ class ClaviIME : InputMethodService(),
     private var capsLock = false
     private var translitMode = false
     private var symbolsMode = false
+    private var symbols2Mode = false
 
     // Language rotation: only cycle through languages the user enabled in Settings
     private var activeLanguages: List<Language> = listOf(Language.UK, Language.EN)
@@ -223,6 +224,7 @@ class ClaviIME : InputMethodService(),
             KeyboardLayout.KEYCODE_TRANSLIT -> handleTranslitToggle()
             KeyboardLayout.KEYCODE_ENTER    -> handleEnter()
             KeyboardLayout.KEYCODE_SYMBOLS  -> handleSymbolsToggle()
+            KeyboardLayout.KEYCODE_SYMBOLS2 -> handleSymbols2Toggle()
             else -> handleCharacter(key)
         }
     }
@@ -326,7 +328,13 @@ class ClaviIME : InputMethodService(),
         if (translitBuffer.isNotEmpty()) {
             translitBuffer.deleteCharAt(translitBuffer.length - 1)
         } else {
-            ic.deleteSurroundingText(1, 0)
+            // If text is selected, delete the selection; otherwise delete one char before cursor
+            val selected = ic.getSelectedText(0)
+            if (!selected.isNullOrEmpty()) {
+                ic.commitText("", 1)
+            } else {
+                ic.deleteSurroundingText(1, 0)
+            }
         }
     }
 
@@ -377,13 +385,23 @@ class ClaviIME : InputMethodService(),
     private fun handleSymbolsToggle() {
         flushTranslitBuffer(force = true)
         symbolsMode = !symbolsMode
+        if (!symbolsMode) symbols2Mode = false  // reset secondary page on exit
+        updateKeyboardLayout()
+    }
+
+    private fun handleSymbols2Toggle() {
+        flushTranslitBuffer(force = true)
+        symbols2Mode = !symbols2Mode
         updateKeyboardLayout()
     }
 
     private fun updateKeyboardLayout() {
         if (!::keyboardView.isInitialized) return
-        val rows = if (symbolsMode) KeyboardLayout.getSymbolsLayout()
-                   else KeyboardLayout.getLayout(currentLanguage, shifted)
+        val rows = when {
+            symbols2Mode -> KeyboardLayout.getSymbolsLayout2()
+            symbolsMode  -> KeyboardLayout.getSymbolsLayout()
+            else         -> KeyboardLayout.getLayout(currentLanguage, shifted)
+        }
         keyboardView.currentLanguage = currentLanguage
         keyboardView.translitActive = translitMode
         keyboardView.setLayout(rows)
