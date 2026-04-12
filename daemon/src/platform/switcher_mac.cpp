@@ -56,7 +56,8 @@ public:
         std::string safe;
         safe.reserve(text.size());
         for (char c : text) {
-            if (c == '"') safe += "\\\"";
+            if (c == '\'') safe += "'\\''";
+            else if (c == '"') safe += "\\\"";
             else if (c == '\\') safe += "\\\\";
             else safe += c;
         }

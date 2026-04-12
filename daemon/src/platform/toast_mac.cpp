@@ -16,7 +16,8 @@ public:
             std::string out;
             out.reserve(s.size() + 4);
             for (char c : s) {
-                if (c == '"')  out += "\\\"";
+                if (c == '\'') out += "'\\''";
+                else if (c == '"')  out += "\\\"";
                 else if (c == '\\') out += "\\\\";
                 else out += c;
             }
