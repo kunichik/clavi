@@ -182,6 +182,18 @@ class ClaviIME : InputMethodService(),
         keyboardView.translationSuggestion = null
     }
 
+    override fun onShortcutTranslit() {
+        handleTranslitToggle()
+        // Refresh shortcut strip so the Tr● indicator updates
+        keyboardView.invalidate()
+    }
+
+    override fun onShortcutSettings() {
+        startActivity(android.content.Intent(this, SettingsActivity::class.java).apply {
+            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        })
+    }
+
     override fun onPredictionTap(word: String) {
         val ic = currentInputConnection ?: return
         ic.commitText("$word ", 1)
@@ -301,12 +313,18 @@ class ClaviIME : InputMethodService(),
     private fun flushTranslitBuffer(force: Boolean) {
         val ic = currentInputConnection ?: return
         while (translitBuffer.isNotEmpty()) {
+            val firstChar = translitBuffer[0]
+            // If buffer has exactly one digraph-start char and we're not forced,
+            // wait for the next char — allows ya→я, sh→ш instead of y→и + a
+            if (!force && translitBuffer.length == 1 && translitEngine.isDigraphStart(firstChar)) {
+                break
+            }
             val result = translitEngine.tryTransliterate(translitBuffer.toString())
             if (result != null) {
                 ic.commitText(result.first, 1)
                 translitBuffer.delete(0, result.second)
-            } else if (force || !translitEngine.isDigraphStart(translitBuffer[0])) {
-                ic.commitText(translitBuffer[0].toString(), 1)
+            } else if (force || !translitEngine.isDigraphStart(firstChar)) {
+                ic.commitText(firstChar.toString(), 1)
                 translitBuffer.deleteCharAt(0)
             } else {
                 break

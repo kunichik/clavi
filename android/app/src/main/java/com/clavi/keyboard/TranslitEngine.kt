@@ -19,10 +19,15 @@ class TranslitEngine {
         Rule("ts", "\u0446"), Rule("Ts", "\u0426"), Rule("TS", "\u0426"),
         Rule("ch", "\u0447"), Rule("Ch", "\u0427"), Rule("CH", "\u0427"),
         Rule("sh", "\u0448"), Rule("Sh", "\u0428"), Rule("SH", "\u0428"),
+        // yu/ya — user-friendly variants (type ya→я, yu→ю)
+        Rule("yu", "\u044E"), Rule("Yu", "\u042E"), Rule("YU", "\u042E"),
+        Rule("ya", "\u044F"), Rule("Ya", "\u042F"), Rule("YA", "\u042F"),
+        Rule("ye", "\u0454"), Rule("Ye", "\u0404"), Rule("YE", "\u0404"),
+        Rule("yi", "\u0457"), Rule("Yi", "\u0407"), Rule("YI", "\u0407"),
+        // Legacy ia/iu variants
         Rule("iu", "\u044E"), Rule("Iu", "\u042E"), Rule("IU", "\u042E"),
         Rule("ia", "\u044F"), Rule("Ia", "\u042F"), Rule("IA", "\u042F"),
         Rule("ie", "\u0454"), Rule("Ie", "\u0404"), Rule("IE", "\u0404"),
-        Rule("yi", "\u0457"), Rule("Yi", "\u0407"), Rule("YI", "\u0407"),
         // Apostrophe
         Rule("'", "\u02BC"),
         // Single chars

@@ -76,9 +76,9 @@ object KeyboardLayout {
             Row(listOf(
                 Key("123", KEYCODE_SYMBOLS, 1.2f, true),
                 Key(label, KEYCODE_LANG_SWITCH, 1f, true),
+                Key(",", code = ','.code),
                 Key(" ", KEYCODE_SPACE, 4.5f, true),
                 Key(".", code = '.'.code),
-                Key("Tr", KEYCODE_TRANSLIT, 1f, true),
                 Key("\u21B5", KEYCODE_ENTER, 1.3f, true, "enter"),
             )),
         )
@@ -104,11 +104,11 @@ object KeyboardLayout {
         Row(listOf(
             Key("123", KEYCODE_SYMBOLS, 1.2f, true),
             Key("УК", KEYCODE_LANG_SWITCH, 1f, true),
+            Key(",", code = ','.code),
+            Key(" ", KEYCODE_SPACE, 4f, true),
             Key("ї"),
             Key("ґ"),
-            Key(" ", KEYCODE_SPACE, 3.5f, true),
             Key(".", code = '.'.code),
-            Key("Tr", KEYCODE_TRANSLIT, 1f, true),
             Key("\u21B5", KEYCODE_ENTER, 1.3f, true, "enter"),
         )),
     )
@@ -131,11 +131,11 @@ object KeyboardLayout {
         Row(listOf(
             Key("123", KEYCODE_SYMBOLS, 1.2f, true),
             Key("УК", KEYCODE_LANG_SWITCH, 1f, true),
+            Key(",", code = ','.code),
+            Key(" ", KEYCODE_SPACE, 4f, true),
             Key("Ї"),
             Key("Ґ"),
-            Key(" ", KEYCODE_SPACE, 3.5f, true),
             Key(".", code = '.'.code),
-            Key("Tr", KEYCODE_TRANSLIT, 1f, true),
             Key("\u21B5", KEYCODE_ENTER, 1.3f, true, "enter"),
         )),
     )
@@ -160,9 +160,9 @@ object KeyboardLayout {
         Row(listOf(
             Key("123", KEYCODE_SYMBOLS, 1.2f, true),
             Key("EN", KEYCODE_LANG_SWITCH, 1f, true),
+            Key(",", code = ','.code),
             Key(" ", KEYCODE_SPACE, 4.5f, true),
             Key(".", code = '.'.code),
-            Key("Tr", KEYCODE_TRANSLIT, 1f, true),
             Key("\u21B5", KEYCODE_ENTER, 1.3f, true, "enter"),
         )),
     )
@@ -185,9 +185,9 @@ object KeyboardLayout {
         Row(listOf(
             Key("123", KEYCODE_SYMBOLS, 1.2f, true),
             Key("EN", KEYCODE_LANG_SWITCH, 1f, true),
+            Key(",", code = ','.code),
             Key(" ", KEYCODE_SPACE, 4.5f, true),
             Key(".", code = '.'.code),
-            Key("Tr", KEYCODE_TRANSLIT, 1f, true),
             Key("\u21B5", KEYCODE_ENTER, 1.3f, true, "enter"),
         )),
     )

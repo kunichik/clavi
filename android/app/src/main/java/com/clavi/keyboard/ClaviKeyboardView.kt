@@ -41,6 +41,8 @@ class ClaviKeyboardView @JvmOverloads constructor(
         fun onTranslationTap(suggestion: TranslationEngine.TranslationSuggestion)
         fun onTranslationDismiss()
         fun onPredictionTap(word: String)
+        fun onShortcutTranslit()
+        fun onShortcutSettings()
     }
 
     var listener: OnKeyListener? = null
@@ -69,11 +71,12 @@ class ClaviKeyboardView @JvmOverloads constructor(
     var predictionItems: List<String> = emptyList()
         set(value) { field = value; invalidate() }
 
-    // Strip priority: fix > translation > diacritics > predictions > clipboard
+    // Strip priority: fix > translation > diacritics > predictions > clipboard > shortcuts
     private val stripShowsFix         get() = fixSuggestion != null
     private val stripShowsTranslation get() = !stripShowsFix && translationSuggestion != null
     private val stripShowsDiacritics  get() = !stripShowsFix && !stripShowsTranslation && diacriticItems.isNotEmpty()
     private val stripShowsPredictions get() = !stripShowsFix && !stripShowsTranslation && !stripShowsDiacritics && predictionItems.isNotEmpty()
+    private val stripShowsShortcuts   get() = !stripShowsFix && !stripShowsTranslation && !stripShowsDiacritics && !stripShowsPredictions && clipItems.isEmpty()
 
     private var rows: List<Row> = emptyList()
     private val keyRects = mutableListOf<Pair<RectF, Key>>()
@@ -207,13 +210,14 @@ class ClaviKeyboardView @JvmOverloads constructor(
 
         val density = resources.displayMetrics.density
 
-        // ── Strip (fix > translation > diacritics > predictions > clipboard) ──
+        // ── Strip (fix > translation > diacritics > predictions > clipboard > shortcuts) ──
         when {
             stripShowsFix          -> drawFixStrip(canvas, density)
             stripShowsTranslation  -> drawTranslationStrip(canvas, density)
             stripShowsDiacritics   -> drawDiacriticsStrip(canvas, density)
             stripShowsPredictions  -> drawPredictionsStrip(canvas, density)
             clipItems.isNotEmpty() -> drawStrip(canvas, density)
+            else                   -> drawShortcutStrip(canvas, density)
         }
 
         // ── Keyboard rows ──
@@ -603,17 +607,16 @@ class ClaviKeyboardView @JvmOverloads constructor(
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
                 // Check strip first
-                if (y < stripHeight && (stripShowsFix || stripShowsTranslation ||
-                                        stripShowsDiacritics || stripShowsPredictions || clipItems.isNotEmpty())) {
+                if (y < stripHeight) {
                     if (!stripShowsDiacritics && !stripShowsFix && !stripShowsTranslation &&
-                        !stripShowsPredictions && clearButtonRect.contains(x, y)) return true
+                        !stripShowsPredictions && clipItems.isNotEmpty() && clearButtonRect.contains(x, y)) return true
                     val idx = chipRects.indexOfFirst { it.contains(x, y) }
                     if (idx >= 0) {
                         pressedChipIndex = idx
                         longPressChipIndex = idx
                         longPressPending = true
                         if (!stripShowsDiacritics && !stripShowsFix && !stripShowsTranslation &&
-                            !stripShowsPredictions) {
+                            !stripShowsPredictions && !stripShowsShortcuts) {
                             longPressHandler.postDelayed(longPressRunnable, 500)
                         }
                         invalidate()
@@ -676,6 +679,10 @@ class ClaviKeyboardView @JvmOverloads constructor(
                                 val word = predictionItems.getOrNull(pressedChipIndex)
                                 if (word != null) stripListener?.onPredictionTap(word)
                             }
+                            stripShowsShortcuts -> when (pressedChipIndex) {
+                                0 -> stripListener?.onShortcutTranslit()
+                                1 -> stripListener?.onShortcutSettings()
+                            }
                             else -> stripListener?.onClipTap(pressedChipIndex)
                         }
                     }
@@ -691,10 +698,9 @@ class ClaviKeyboardView @JvmOverloads constructor(
                 backspaceRepeatRunnable?.let { longPressHandler.removeCallbacks(it) }
                 backspaceRepeatRunnable = null
                 longPressHandler.removeCallbacks(spaceLongPressRunnable)
-                if (!spaceLongPressPending) {
-                    pressedKey?.let { listener?.onKey(it) }
-                }
                 spaceLongPressPending = false
+                // pressedKey is null when spaceLongPressRunnable already fired; non-null on regular tap
+                pressedKey?.let { listener?.onKey(it) }
                 pressedKey = null
                 invalidate()
                 return true
@@ -714,5 +720,50 @@ class ClaviKeyboardView @JvmOverloads constructor(
             }
         }
         return false
+    }
+
+    /** Idle strip: shown when there are no suggestions or clipboard items.
+     *  Displays shortcut buttons: Translit toggle + Settings. */
+    private fun drawShortcutStrip(canvas: Canvas, density: Float) {
+        chipRects.clear()
+        clearButtonRect = RectF()
+
+        val sh = stripHeight
+        canvas.drawRect(0f, 0f, width.toFloat(), sh, stripBgPaint)
+
+        val chipH = sh - chipPaddingV * density * 2
+        val chipTop = chipPaddingV * density
+        val chipBottom = chipTop + chipH
+        val chipR = chipRadius * density
+
+        chipTextPaint.textSize = 13f * density
+        chipTextPaint.textAlign = Paint.Align.CENTER
+
+        // Shortcut buttons definition: label, active-tint
+        val shortcuts = listOf(
+            if (translitActive) "Tr ●" else "Tr",  // translit with active dot
+            "⚙",
+        )
+
+        var x = chipPaddingH * density
+        shortcuts.forEachIndexed { i, label ->
+            val textW = chipTextPaint.measureText(label)
+            val chipW = (textW + chipPaddingH * density * 2).coerceAtLeast(44f * density)
+            val rect = RectF(x, chipTop, x + chipW, chipBottom)
+            chipRects.add(rect)
+
+            val isActive = i == 0 && translitActive
+            val bgColor = if (pressedChipIndex == i) keyBgPressedColor
+                          else if (isActive) Color.argb(200, 30, 80, 160)
+                          else chipBgColor
+            canvas.drawRoundRect(rect, chipR, chipR,
+                Paint(Paint.ANTI_ALIAS_FLAG).apply { color = bgColor })
+
+            chipTextPaint.color = Color.WHITE
+            canvas.drawText(label, rect.centerX(), chipBottom - chipPaddingV * density * 0.8f, chipTextPaint)
+            chipTextPaint.color = chipTextColor
+
+            x += chipW + chipSpacing * density
+        }
     }
 }
