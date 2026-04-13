@@ -5,6 +5,9 @@ out/
 
 # Generated binary pack data (built by tools/build_*.py)
 *.bin
+# Spell dictionary assets are generated from wordlists — track them for builds
+!android/app/src/main/assets/spell/*.bin
+!ios/ClaviKeyboard/ClaviKeyboardExtension/Resources/spell/*.bin
 
 # Python
 __pycache__/

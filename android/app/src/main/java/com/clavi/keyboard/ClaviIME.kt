@@ -31,6 +31,7 @@ class ClaviIME : InputMethodService(),
     private var capsLock = false
     private var translitMode = false
     private var symbolsMode = false
+    private var symbols2Mode = false
 
     // Language rotation: only cycle through languages the user enabled in Settings
     private var activeLanguages: List<Language> = listOf(Language.UK, Language.EN)
@@ -46,6 +47,15 @@ class ClaviIME : InputMethodService(),
 
     // Word prediction engine — always available for EN and UK
     private lateinit var predictionEngine: WordPredictionEngine
+
+    // Spell engines — loaded in background; null = loading not yet done
+    private var spellEngineEn: SpellEngine? = null
+    private var spellEngineUk: SpellEngine? = null
+    private var lastAutocorrect: Pair<String, String>? = null  // original → replacement
+
+    companion object {
+        private const val AUTOCORRECT_THRESHOLD = 0.75f
+    }
 
     // Emoji panel — lazy, created once and reused
     private var emojiPanel: EmojiPanel? = null
@@ -65,7 +75,6 @@ class ClaviIME : InputMethodService(),
         diacriticsLocale = userDiacriticsLocale
         val savedLang = prefs.getString(SettingsActivity.PREF_DEFAULT_LANGUAGE, Language.UK.name)
         currentLanguage = Language.entries.firstOrNull { it.name == savedLang } ?: Language.UK
-        keyboardView.hapticEnabled = prefs.getBoolean(SettingsActivity.PREF_HAPTIC, true)
         activeLanguages = SettingsActivity.loadActiveLanguages(prefs)
         currentLangIndex = activeLanguages.indexOf(currentLanguage).coerceAtLeast(0)
         val transSrc = prefs.getString(SettingsActivity.PREF_TRANSLATION_SOURCE, null)
@@ -75,7 +84,9 @@ class ClaviIME : InputMethodService(),
 
         predictionEngine = WordPredictionEngine(this)
 
+        // Create keyboardView first, then apply prefs that reference it
         keyboardView = ClaviKeyboardView(this)
+        keyboardView.hapticEnabled = prefs.getBoolean(SettingsActivity.PREF_HAPTIC, true)
         keyboardView.listener = this
         keyboardView.stripListener = this
         updateKeyboardLayout()
@@ -91,6 +102,12 @@ class ClaviIME : InputMethodService(),
             android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
             android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
         ))
+
+        // Pre-warm spell engines in background to avoid first-keystroke lag
+        Thread {
+            spellEngineEn = SpellEngine(this, "en")
+            spellEngineUk = SpellEngine(this, "uk")
+        }.start()
 
         clipboardHistory.startListening()
         return keyboardContainer
@@ -188,6 +205,16 @@ class ClaviIME : InputMethodService(),
         if (shifted && !capsLock) { shifted = false; updateKeyboardLayout() }
     }
 
+    override fun onAutocorrectReject(original: String) {
+        val ac = lastAutocorrect ?: return
+        val ic = currentInputConnection ?: return
+        // Undo: delete the replacement (+1 for the trailing space) and restore original
+        ic.deleteSurroundingText(ac.second.length + 1, 0)
+        ic.commitText(ac.first + " ", 1)
+        lastAutocorrect = null
+        keyboardView.autocorrectReject = null
+    }
+
     override fun onSpaceLongPress() {
         val prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE)
         val panel = EmojiPanel(this, prefs).apply {
@@ -222,6 +249,7 @@ class ClaviIME : InputMethodService(),
             KeyboardLayout.KEYCODE_TRANSLIT -> handleTranslitToggle()
             KeyboardLayout.KEYCODE_ENTER    -> handleEnter()
             KeyboardLayout.KEYCODE_SYMBOLS  -> handleSymbolsToggle()
+            KeyboardLayout.KEYCODE_SYMBOLS2 -> handleSymbols2Toggle()
             else -> handleCharacter(key)
         }
     }
@@ -237,17 +265,37 @@ class ClaviIME : InputMethodService(),
             flushTranslitBuffer(force = false)
             clearDiacritics()
             keyboardView.fixSuggestion = null
+            keyboardView.autocorrectReject = null
             keyboardView.predictionItems = emptyList()
         } else {
             ic.commitText(text, 1)
             // Show diacritics strip if this letter has variants in the active locale
             showDiacriticsIfNeeded(text)
-            // After space or newline: run fix + translation + prediction
+            // After space or newline: run fix → autocorrect → translation → prediction
             if (text == " " || text == "\n") {
+                keyboardView.autocorrectReject = null
+                lastAutocorrect = null
                 val textBefore = ic.getTextBeforeCursor(200, 0)?.toString() ?: ""
                 val fix = TextFixEngine.analyze(textBefore)
                 keyboardView.fixSuggestion = fix
                 if (fix == null) {
+                    // Try autocorrect on the word we just finished
+                    val lastWord = extractLastCompletedWord(textBefore)
+                    val spell = spellEngineFor(currentLanguage)
+                    if (spell != null && lastWord != null && shouldAutocorrect(lastWord)
+                        && !spell.isCorrect(lastWord)) {
+                        val sug = spell.correct(lastWord)
+                        if (sug != null && sug.confidence >= AUTOCORRECT_THRESHOLD) {
+                            // Replace: delete (word + space) then commit (corrected + space)
+                            ic.deleteSurroundingText(lastWord.length + 1, 0)
+                            ic.commitText(sug.word + text, 1)
+                            lastAutocorrect = lastWord to sug.word
+                            keyboardView.autocorrectReject = AutocorrectReject(lastWord, sug.word)
+                            // Strip is taken by autocorrect undo — skip translation/prediction
+                            if (shifted && !capsLock) { shifted = false; updateKeyboardLayout() }
+                            return
+                        }
+                    }
                     keyboardView.translationSuggestion = null
                     translationEngine?.translate(textBefore) { suggestion ->
                         Handler(Looper.getMainLooper()).post {
@@ -263,7 +311,11 @@ class ClaviIME : InputMethodService(),
             } else {
                 keyboardView.fixSuggestion = null
                 keyboardView.translationSuggestion = null
-                keyboardView.predictionItems = emptyList()
+                // Live completions as the user types
+                val textBefore = ic.getTextBeforeCursor(100, 0)?.toString() ?: ""
+                val partial = extractCurrentWord(textBefore + text)
+                val completions = spellEngineFor(currentLanguage)?.complete(partial ?: "") ?: emptyList()
+                keyboardView.predictionItems = completions
             }
         }
 
@@ -298,12 +350,18 @@ class ClaviIME : InputMethodService(),
     private fun flushTranslitBuffer(force: Boolean) {
         val ic = currentInputConnection ?: return
         while (translitBuffer.isNotEmpty()) {
+            val firstChar = translitBuffer[0]
+            // If buffer has exactly one digraph-start char and we're not forced,
+            // wait for the next char — allows ya→я, sh→ш instead of y→и + a
+            if (!force && translitBuffer.length == 1 && translitEngine.isDigraphStart(firstChar)) {
+                break
+            }
             val result = translitEngine.tryTransliterate(translitBuffer.toString())
             if (result != null) {
                 ic.commitText(result.first, 1)
                 translitBuffer.delete(0, result.second)
-            } else if (force || !translitEngine.isDigraphStart(translitBuffer[0])) {
-                ic.commitText(translitBuffer[0].toString(), 1)
+            } else if (force || !translitEngine.isDigraphStart(firstChar)) {
+                ic.commitText(firstChar.toString(), 1)
                 translitBuffer.deleteCharAt(0)
             } else {
                 break
@@ -321,11 +379,19 @@ class ClaviIME : InputMethodService(),
         clearDiacritics()
         keyboardView.fixSuggestion = null
         keyboardView.translationSuggestion = null
+        keyboardView.autocorrectReject = null
+        lastAutocorrect = null
         keyboardView.predictionItems = emptyList()
         if (translitBuffer.isNotEmpty()) {
             translitBuffer.deleteCharAt(translitBuffer.length - 1)
         } else {
-            ic.deleteSurroundingText(1, 0)
+            // If text is selected, delete the selection; otherwise delete one char before cursor
+            val selected = ic.getSelectedText(0)
+            if (!selected.isNullOrEmpty()) {
+                ic.commitText("", 1)
+            } else {
+                ic.deleteSurroundingText(1, 0)
+            }
         }
     }
 
@@ -376,13 +442,57 @@ class ClaviIME : InputMethodService(),
     private fun handleSymbolsToggle() {
         flushTranslitBuffer(force = true)
         symbolsMode = !symbolsMode
+        if (!symbolsMode) symbols2Mode = false  // reset secondary page on exit
         updateKeyboardLayout()
+    }
+
+    private fun handleSymbols2Toggle() {
+        flushTranslitBuffer(force = true)
+        symbols2Mode = !symbols2Mode
+        updateKeyboardLayout()
+    }
+
+    // ── Spell helpers ──
+
+    private fun spellEngineFor(lang: Language): SpellEngine? = when (lang) {
+        Language.EN -> spellEngineEn
+        Language.UK -> spellEngineUk
+        else        -> null
+    }
+
+    /** Returns the word currently being typed (no trailing space). */
+    private fun extractCurrentWord(textBefore: String): String? {
+        if (textBefore.isBlank()) return null
+        val trimmed = textBefore.trimEnd()
+        val lastSpace = trimmed.lastIndexOfAny(charArrayOf(' ', '\n'))
+        val word = if (lastSpace < 0) trimmed else trimmed.substring(lastSpace + 1)
+        return word.ifEmpty { null }
+    }
+
+    /** Returns the last completed word (before a trailing space/newline). */
+    private fun extractLastCompletedWord(textBefore: String): String? {
+        // textBefore ends with the space/newline we just committed
+        val before = textBefore.trimEnd()
+        val lastSpace = before.lastIndexOfAny(charArrayOf(' ', '\n'))
+        val word = if (lastSpace < 0) before else before.substring(lastSpace + 1)
+        return word.ifEmpty { null }
+    }
+
+    /** Returns false for words that should never be auto-corrected. */
+    private fun shouldAutocorrect(word: String): Boolean {
+        if (word.length < 3) return false
+        if (word[0].isUpperCase()) return false
+        if (word.any { it == '.' || it == '/' || it == ':' || it == '@' }) return false
+        return true
     }
 
     private fun updateKeyboardLayout() {
         if (!::keyboardView.isInitialized) return
-        val rows = if (symbolsMode) KeyboardLayout.getSymbolsLayout()
-                   else KeyboardLayout.getLayout(currentLanguage, shifted)
+        val rows = when {
+            symbols2Mode -> KeyboardLayout.getSymbolsLayout2()
+            symbolsMode  -> KeyboardLayout.getSymbolsLayout()
+            else         -> KeyboardLayout.getLayout(currentLanguage, shifted)
+        }
         keyboardView.currentLanguage = currentLanguage
         keyboardView.translitActive = translitMode
         keyboardView.setLayout(rows)

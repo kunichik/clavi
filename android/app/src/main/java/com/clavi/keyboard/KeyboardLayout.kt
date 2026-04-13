@@ -41,6 +41,12 @@ data class Row(val keys: List<Key>)
 
 object KeyboardLayout {
 
+    // Number row — prepended to all letter layouts (UK, EN, Latin QWERTY)
+    private val numberRow = Row(listOf(
+        Key("1"), Key("2"), Key("3"), Key("4"), Key("5"),
+        Key("6"), Key("7"), Key("8"), Key("9"), Key("0"),
+    ))
+
     // Special key codes
     const val KEYCODE_SHIFT = -1
     const val KEYCODE_BACKSPACE = -2
@@ -49,6 +55,7 @@ object KeyboardLayout {
     const val KEYCODE_SPACE = 32
     const val KEYCODE_ENTER = -5
     const val KEYCODE_SYMBOLS = -6
+    const val KEYCODE_SYMBOLS2 = -7  // #+= secondary symbols page
 
     fun getLayout(language: Language, shifted: Boolean): List<Row> {
         return when (language) {
@@ -65,6 +72,7 @@ object KeyboardLayout {
     private fun latinQwertyLayout(label: String, shifted: Boolean): List<Row> {
         fun k(lower: String) = Key(if (shifted) lower.uppercase() else lower)
         return listOf(
+            numberRow,
             Row("qwertyuiop".map { k(it.toString()) }),
             Row("asdfghjkl".map { k(it.toString()) }),
             Row(
@@ -75,9 +83,9 @@ object KeyboardLayout {
             Row(listOf(
                 Key("123", KEYCODE_SYMBOLS, 1.2f, true),
                 Key(label, KEYCODE_LANG_SWITCH, 1f, true),
+                Key(",", code = ','.code),
                 Key(" ", KEYCODE_SPACE, 4.5f, true),
                 Key(".", code = '.'.code),
-                Key("Tr", KEYCODE_TRANSLIT, 1f, true),
                 Key("\u21B5", KEYCODE_ENTER, 1.3f, true, "enter"),
             )),
         )
@@ -86,6 +94,7 @@ object KeyboardLayout {
     // ── Ukrainian ЙЦУКЕН ──
 
     private val ukNormal = listOf(
+        numberRow,
         Row(listOf(
             Key("й"), Key("ц"), Key("у"), Key("к"), Key("е"),
             Key("н"), Key("г"), Key("ш"), Key("щ"), Key("з"), Key("х"),
@@ -103,16 +112,17 @@ object KeyboardLayout {
         Row(listOf(
             Key("123", KEYCODE_SYMBOLS, 1.2f, true),
             Key("УК", KEYCODE_LANG_SWITCH, 1f, true),
+            Key(",", code = ','.code),
+            Key(" ", KEYCODE_SPACE, 4f, true),
             Key("ї"),
             Key("ґ"),
-            Key(" ", KEYCODE_SPACE, 3.5f, true),
             Key(".", code = '.'.code),
-            Key("Tr", KEYCODE_TRANSLIT, 1f, true),
             Key("\u21B5", KEYCODE_ENTER, 1.3f, true, "enter"),
         )),
     )
 
     private val ukShifted = listOf(
+        numberRow,
         Row(listOf(
             Key("Й"), Key("Ц"), Key("У"), Key("К"), Key("Е"),
             Key("Н"), Key("Г"), Key("Ш"), Key("Щ"), Key("З"), Key("Х"),
@@ -130,11 +140,11 @@ object KeyboardLayout {
         Row(listOf(
             Key("123", KEYCODE_SYMBOLS, 1.2f, true),
             Key("УК", KEYCODE_LANG_SWITCH, 1f, true),
+            Key(",", code = ','.code),
+            Key(" ", KEYCODE_SPACE, 4f, true),
             Key("Ї"),
             Key("Ґ"),
-            Key(" ", KEYCODE_SPACE, 3.5f, true),
             Key(".", code = '.'.code),
-            Key("Tr", KEYCODE_TRANSLIT, 1f, true),
             Key("\u21B5", KEYCODE_ENTER, 1.3f, true, "enter"),
         )),
     )
@@ -142,6 +152,7 @@ object KeyboardLayout {
     // ── English QWERTY ──
 
     private val enNormal = listOf(
+        numberRow,
         Row(listOf(
             Key("q"), Key("w"), Key("e"), Key("r"), Key("t"),
             Key("y"), Key("u"), Key("i"), Key("o"), Key("p"),
@@ -159,14 +170,15 @@ object KeyboardLayout {
         Row(listOf(
             Key("123", KEYCODE_SYMBOLS, 1.2f, true),
             Key("EN", KEYCODE_LANG_SWITCH, 1f, true),
+            Key(",", code = ','.code),
             Key(" ", KEYCODE_SPACE, 4.5f, true),
             Key(".", code = '.'.code),
-            Key("Tr", KEYCODE_TRANSLIT, 1f, true),
             Key("\u21B5", KEYCODE_ENTER, 1.3f, true, "enter"),
         )),
     )
 
     private val enShifted = listOf(
+        numberRow,
         Row(listOf(
             Key("Q"), Key("W"), Key("E"), Key("R"), Key("T"),
             Key("Y"), Key("U"), Key("I"), Key("O"), Key("P"),
@@ -184,9 +196,9 @@ object KeyboardLayout {
         Row(listOf(
             Key("123", KEYCODE_SYMBOLS, 1.2f, true),
             Key("EN", KEYCODE_LANG_SWITCH, 1f, true),
+            Key(",", code = ','.code),
             Key(" ", KEYCODE_SPACE, 4.5f, true),
             Key(".", code = '.'.code),
-            Key("Tr", KEYCODE_TRANSLIT, 1f, true),
             Key("\u21B5", KEYCODE_ENTER, 1.3f, true, "enter"),
         )),
     )
@@ -259,9 +271,34 @@ object KeyboardLayout {
             Key("("), Key(")"), Key("="), Key("%"),
         )),
         Row(listOf(
-            Key("ABC", KEYCODE_SYMBOLS, 1.5f, true),
+            Key("#+=", KEYCODE_SYMBOLS2, 1.5f, true),
             Key("!"), Key("\""), Key("'"), Key(":"),
             Key(";"), Key("/"), Key("?"),
+            Key("\u232B", KEYCODE_BACKSPACE, 1.5f, true, "backspace"),
+        )),
+        Row(listOf(
+            Key("ABC", KEYCODE_SYMBOLS, 1.2f, true),
+            Key("EN", KEYCODE_LANG_SWITCH, 1f, true),
+            Key(","),
+            Key(" ", KEYCODE_SPACE, 4f, true),
+            Key("."),
+            Key("\u21B5", KEYCODE_ENTER, 1.3f, true, "enter"),
+        )),
+    )
+
+    fun getSymbolsLayout2(): List<Row> = listOf(
+        Row(listOf(
+            Key("~"), Key("`"), Key("!"), Key("@"), Key("#"),
+            Key("\$"), Key("^"), Key("*"), Key("["), Key("]"),
+        )),
+        Row(listOf(
+            Key("{"), Key("}"), Key("|"), Key("\\"), Key("<"),
+            Key(">"), Key("_"), Key("="), Key("+"),
+        )),
+        Row(listOf(
+            Key("123", KEYCODE_SYMBOLS, 1.5f, true),
+            Key("\""), Key("'"), Key(";"), Key(":"),
+            Key("/"), Key("?"),
             Key("\u232B", KEYCODE_BACKSPACE, 1.5f, true, "backspace"),
         )),
         Row(listOf(
