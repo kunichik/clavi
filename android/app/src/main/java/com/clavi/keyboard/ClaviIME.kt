@@ -215,6 +215,17 @@ class ClaviIME : InputMethodService(),
         keyboardView.autocorrectReject = null
     }
 
+    override fun onShortcutTranslit() {
+        handleTranslitToggle()
+        keyboardView.invalidate()
+    }
+
+    override fun onShortcutSettings() {
+        startActivity(android.content.Intent(this, SettingsActivity::class.java).apply {
+            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        })
+    }
+
     override fun onSpaceLongPress() {
         val prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE)
         val panel = EmojiPanel(this, prefs).apply {
