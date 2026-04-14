@@ -9,6 +9,7 @@ add_executable(clavi-tests
     unit/test_word_buffer.cpp
     unit/test_ngram_model.cpp
     unit/test_logger.cpp
+    unit/test_text_fix_engine.cpp
     integration/test_detector_e2e.cpp
     integration/test_translit_kmu.cpp
     # Compile word_buffer directly (no libuiohook dependency)

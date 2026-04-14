@@ -4,6 +4,7 @@
 #include "clavi/platform/toast.hpp"
 #include "clavi/platform/tray.hpp"
 #include "clavi/detector.hpp"
+#include "clavi/text_fix_engine.hpp"
 #include "clavi/config.hpp"
 #include "clavi/logger.hpp"
 #include "clavi/undo_stack.hpp"
@@ -267,40 +268,60 @@ int main(int argc, char* argv[]) {
         }
 
         const clavi::DetectionResult result = detector.analyze(word);
-        if (result.action != clavi::Action::SwitchAndRetype) return;
+        if (result.action == clavi::Action::SwitchAndRetype) {
+            const std::size_t char_count = clavi::utf8::count(word);
 
-        const std::size_t char_count = clavi::utf8::count(word);
+            // Switch layout
+            if (!switcher->switch_layout(result.target_locale)) {
+                if (verbose)
+                    std::fprintf(stderr, "[clavid] switch_layout(%s) failed\n",
+                                 result.target_locale.c_str());
+                logger.warn(std::string("switch_layout failed: ") +
+                            result.target_locale);
+                return;
+            }
 
-        // Switch layout
-        if (!switcher->switch_layout(result.target_locale)) {
-            if (verbose)
-                std::fprintf(stderr, "[clavid] switch_layout(%s) failed\n",
-                             result.target_locale.c_str());
-            logger.warn(std::string("switch_layout failed: ") +
+            // Retype
+            switcher->retype(char_count, result.corrected_text);
+
+            // Save to undo stack
+            undo_stack.push({word, result.corrected_text,
+                             current_locale, result.target_locale});
+            current_locale = result.target_locale;
+
+            // Toast notification
+            const std::string toast_body =
+                result.corrected_text + " \xE2\x86\x90 " + word; // "corrected ← original"
+            toast->show("Clavi", toast_body, 2000);
+
+            // PRIVACY: log locale change only, never the typed/remapped content
+            logger.info(std::string("Layer 1: SwitchAndRetype -> ") +
                         result.target_locale);
+            if (verbose)
+                std::printf("[clavid] switched: '%s' -> '%s' (%s)\n",
+                            word.c_str(), result.corrected_text.c_str(),
+                            result.target_locale.c_str());
             return;
         }
 
-        // Retype
-        switcher->retype(char_count, result.corrected_text);
+        // ── TextFix: correct obvious typos (layout unchanged) ────────────────
+        if (const auto fix = clavi::TextFixEngine::check_word(word)) {
+            const std::size_t char_count = clavi::utf8::count(word);
+            switcher->retype(char_count, fix->corrected);
 
-        // Save to undo stack
-        undo_stack.push({word, result.corrected_text,
-                         current_locale, result.target_locale});
-        current_locale = result.target_locale;
+            // Same undo mechanics as layout switch (locale_before == locale_after)
+            undo_stack.push({word, fix->corrected, current_locale, current_locale});
 
-        // Toast notification
-        const std::string toast_body =
-            result.corrected_text + " \xE2\x86\x90 " + word; // "corrected ← original"
-        toast->show("Clavi", toast_body, 2000);
+            const std::string toast_body =
+                fix->corrected + " \xE2\x86\x90 " + word;  // "corrected ← typo"
+            toast->show("Clavi", toast_body, 1500);
 
-        // PRIVACY: log locale change only, never the typed/remapped content
-        logger.info(std::string("Layer 1: SwitchAndRetype -> ") +
-                    result.target_locale);
-        if (verbose)
-            std::printf("[clavid] switched: '%s' -> '%s' (%s)\n",
-                        word.c_str(), result.corrected_text.c_str(),
-                        result.target_locale.c_str());
+            // PRIVACY: log event type only, never the content
+            logger.info("TextFix: typo corrected");
+            if (verbose)
+                std::printf("[clavid] fix: '%s' -> '%s'\n",
+                            word.c_str(), fix->corrected.c_str());
+        }
     };
 
     cbs.on_undo = [&]() {

@@ -8,6 +8,7 @@ add_library(clavi-core STATIC
     src/translit.cpp
     src/ngram_model.cpp
     src/logger.cpp
+    src/text_fix_engine.cpp
 )
 
 target_include_directories(clavi-core
