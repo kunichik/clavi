@@ -213,7 +213,7 @@ class SpellEngine(private val context: Context, private val lang: String) {
     private fun fnv1a64(word: String): Long {
         var h = -3750763034362895579L  // 14695981039346656037 as signed Long
         for (b in word.encodeToByteArray()) {
-            h = h xor b.toLong()
+            h = h xor (b.toLong() and 0xFFL)  // mask: avoid sign-extension for bytes > 127 (Cyrillic)
             h *= 1099511628211L
         }
         return if (h == 0L) 1L else h

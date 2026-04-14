@@ -87,8 +87,8 @@ def load_words_en(path: str) -> list[str]:
         if w not in seen:
             seen.add(w)
             unique.append(w)
-    # Sort (short words first, then alpha) — position = frequency proxy
-    unique.sort(key=lambda w: (len(w), w))
+    # Sort lexicographically — required for binary search in complete()
+    unique.sort()
     return unique[:MAX_WORDS]
 
 
@@ -111,7 +111,8 @@ def load_words_uk(path: str) -> list[str]:
         if w not in seen:
             seen.add(w)
             unique.append(w)
-    unique.sort(key=lambda w: (len(w), w))
+    # Sort lexicographically — required for binary search in complete()
+    unique.sort()
     return unique[:MAX_WORDS]
 
 
