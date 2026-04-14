@@ -5,7 +5,7 @@
 //   4 bytes  magic "SPLV"
 //   u32 LE   word_count
 //   u32 LE   hash_table_size
-//   word list: word_count × [u8 len][UTF-8 bytes]   sorted by (len, alpha)
+//   word list: word_count × [u8 len][UTF-8 bytes]   sorted lexicographically
 //   hash table: hash_table_size × u64 FNV-1a, open-addressing, 0 = empty
 
 import Foundation

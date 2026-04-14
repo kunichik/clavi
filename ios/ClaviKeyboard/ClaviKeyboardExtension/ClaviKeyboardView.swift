@@ -11,6 +11,8 @@ protocol ClaviKeyboardViewDelegate: AnyObject {
     func didTapTranslation(_ suggestion: TranslationEngine.TranslationSuggestion)
     func didDismissTranslation()
     func didTapPrediction(_ word: String)
+    func didTapAutocorrectReject(original: String)
+    func didDismissAutocorrect()
     func didRequestEmojiPanel()
     func didTapNextKeyboard()
 }
@@ -19,9 +21,12 @@ protocol ClaviKeyboardViewDelegate: AnyObject {
  * Custom keyboard view (UIKit).
  *
  * Strip priority (only one shown at a time):
- *   1. Fix strip (green)      — TextFixEngine suggestion
- *   2. Diacritics strip (teal)— last letter has variants
- *   3. Clipboard strip (dark) — paste history
+ *   1. Fix strip (green)        — TextFixEngine suggestion
+ *   2. Autocorrect strip (orange)— auto-replace undo
+ *   3. Translation strip (blue) — TranslationEngine suggestion
+ *   4. Diacritics strip (teal)  — last letter has variants
+ *   5. Predictions strip        — word completions
+ *   6. Clipboard strip (dark)   — paste history
  */
 class ClaviKeyboardView: UIView {
 
@@ -37,6 +42,8 @@ class ClaviKeyboardView: UIView {
     var fixSuggestion: TextFixEngine.Fix? { didSet { updateStripVisibility() } }
     var translationSuggestion: TranslationEngine.TranslationSuggestion? { didSet { updateStripVisibility() } }
     var predictionItems: [String] = [] { didSet { updateStripVisibility() } }
+    /// Set to show the orange autocorrect undo strip; nil = hidden.
+    var autocorrectReject: (original: String, replaced: String)? { didSet { updateStripVisibility() } }
 
     // MARK: - Subviews
 
@@ -52,6 +59,10 @@ class ClaviKeyboardView: UIView {
     // Fix strip
     private let fixStrip        = UIView()
     private let fixStack        = UIStackView()
+
+    // Autocorrect reject strip
+    private let autocorrectStrip  = UIView()
+    private let autocorrectStack  = UIStackView()
 
     // Translation strip
     private let translStrip     = UIView()
@@ -83,8 +94,9 @@ class ClaviKeyboardView: UIView {
     private let clipBgColor    = UIColor(red: 0.11, green: 0.17, blue: 0.19, alpha: 1)
     private let chipColor      = UIColor(red: 0.22, green: 0.28, blue: 0.31, alpha: 1)
     private let diacrBgColor   = UIColor(red: 0.04, green: 0.26, blue: 0.26, alpha: 1)
-    private let fixBgColor     = UIColor(red: 0.09, green: 0.19, blue: 0.14, alpha: 1)
-    private let translBgColor  = UIColor(red: 0.05, green: 0.28, blue: 0.63, alpha: 1)
+    private let fixBgColor          = UIColor(red: 0.09, green: 0.19, blue: 0.14, alpha: 1)
+    private let autocorrectBgColor  = UIColor(red: 0.24, green: 0.14, blue: 0.04, alpha: 1)
+    private let translBgColor       = UIColor(red: 0.05, green: 0.28, blue: 0.63, alpha: 1)
     private let predBgColor    = UIColor(red: 0.11, green: 0.14, blue: 0.16, alpha: 1)
 
     // MARK: - Init
@@ -105,6 +117,7 @@ class ClaviKeyboardView: UIView {
         setupClipStrip()
         setupDiacrStrip()
         setupFixStrip()
+        setupAutocorrectStrip()
         setupTranslStrip()
         setupPredStrip()
 
@@ -144,6 +157,15 @@ class ClaviKeyboardView: UIView {
             fixStack.leadingAnchor.constraint(equalTo: fixStrip.leadingAnchor, constant: 8),
             fixStack.trailingAnchor.constraint(equalTo: fixStrip.trailingAnchor, constant: -8),
             fixStack.centerYAnchor.constraint(equalTo: fixStrip.centerYAnchor),
+
+            autocorrectStrip.leadingAnchor.constraint(equalTo: leadingAnchor),
+            autocorrectStrip.trailingAnchor.constraint(equalTo: trailingAnchor),
+            autocorrectStrip.topAnchor.constraint(equalTo: topAnchor),
+            autocorrectStrip.heightAnchor.constraint(equalToConstant: stripHeight),
+
+            autocorrectStack.leadingAnchor.constraint(equalTo: autocorrectStrip.leadingAnchor, constant: 8),
+            autocorrectStack.trailingAnchor.constraint(equalTo: autocorrectStrip.trailingAnchor, constant: -8),
+            autocorrectStack.centerYAnchor.constraint(equalTo: autocorrectStrip.centerYAnchor),
 
             translStrip.leadingAnchor.constraint(equalTo: leadingAnchor),
             translStrip.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -223,6 +245,20 @@ class ClaviKeyboardView: UIView {
         fixStrip.addSubview(fixStack)
     }
 
+    // MARK: - Autocorrect strip setup
+
+    private func setupAutocorrectStrip() {
+        autocorrectStrip.backgroundColor = autocorrectBgColor
+        autocorrectStrip.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(autocorrectStrip)
+
+        autocorrectStack.axis = .horizontal
+        autocorrectStack.spacing = 8
+        autocorrectStack.alignment = .center
+        autocorrectStack.translatesAutoresizingMaskIntoConstraints = false
+        autocorrectStrip.addSubview(autocorrectStack)
+    }
+
     // MARK: - Predictions strip setup
 
     private func setupPredStrip() {
@@ -252,27 +288,30 @@ class ClaviKeyboardView: UIView {
         translStrip.addSubview(translStack)
     }
 
-    // MARK: - Strip visibility (priority: fix > translation > diacritics > predictions > clipboard)
+    // MARK: - Strip visibility (priority: fix > autocorrect > translation > diacritics > predictions > clipboard)
 
     private func updateStripVisibility() {
-        let showFix   = fixSuggestion != nil
-        let showTransl = !showFix && translationSuggestion != nil
-        let showDiacr  = !showFix && !showTransl && !diacriticItems.isEmpty
-        let showPred   = !showFix && !showTransl && !showDiacr && !predictionItems.isEmpty
-        let showClip   = !showFix && !showTransl && !showDiacr && !showPred && !clipItems.isEmpty
+        let showFix         = fixSuggestion != nil
+        let showAutocorrect = !showFix && autocorrectReject != nil
+        let showTransl      = !showFix && !showAutocorrect && translationSuggestion != nil
+        let showDiacr       = !showFix && !showAutocorrect && !showTransl && !diacriticItems.isEmpty
+        let showPred        = !showFix && !showAutocorrect && !showTransl && !showDiacr && !predictionItems.isEmpty
+        let showClip        = !showFix && !showAutocorrect && !showTransl && !showDiacr && !showPred && !clipItems.isEmpty
 
-        fixStrip.isHidden       = !showFix
-        translStrip.isHidden    = !showTransl
-        diacrStrip.isHidden     = !showDiacr
-        predStrip.isHidden      = !showPred
-        clipScrollView.isHidden = !showClip
-        clipClearBtn.isHidden   = !showClip
+        fixStrip.isHidden          = !showFix
+        autocorrectStrip.isHidden  = !showAutocorrect
+        translStrip.isHidden       = !showTransl
+        diacrStrip.isHidden        = !showDiacr
+        predStrip.isHidden         = !showPred
+        clipScrollView.isHidden    = !showClip
+        clipClearBtn.isHidden      = !showClip
 
-        if showFix    { rebuildFixStrip() }
-        if showTransl { rebuildTranslStrip() }
-        if showDiacr  { rebuildDiacrStrip() }
-        if showPred   { rebuildPredStrip() }
-        if showClip   { rebuildClipStrip() }
+        if showFix         { rebuildFixStrip() }
+        if showAutocorrect { rebuildAutocorrectStrip() }
+        if showTransl      { rebuildTranslStrip() }
+        if showDiacr       { rebuildDiacrStrip() }
+        if showPred        { rebuildPredStrip() }
+        if showClip        { rebuildClipStrip() }
     }
 
     // MARK: - Rebuild strip content
@@ -345,6 +384,45 @@ class ClaviKeyboardView: UIView {
         let dismissBtn = chipButton(title: "✕", color: UIColor(white: 1, alpha: 0.6), bg: chipColor.withAlphaComponent(0.5))
         dismissBtn.addTarget(self, action: #selector(fixDismissTapped), for: .touchUpInside)
         fixStack.addArrangedSubview(dismissBtn)
+    }
+
+    private func rebuildAutocorrectStrip() {
+        autocorrectStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        guard let ac = autocorrectReject else { return }
+
+        let label = UILabel()
+        label.text = "autocorrect:"
+        label.font = .systemFont(ofSize: 11)
+        label.textColor = UIColor(white: 1, alpha: 0.5)
+        autocorrectStack.addArrangedSubview(label)
+
+        // Original word chip — tap to undo autocorrect
+        let orangeChipBg = UIColor(red: 0.65, green: 0.35, blue: 0.05, alpha: 0.8)
+        let originalBtn = chipButton(title: ac.original, color: .white, bg: orangeChipBg)
+        originalBtn.addTarget(self, action: #selector(autocorrectRejectTapped), for: .touchUpInside)
+        autocorrectStack.addArrangedSubview(originalBtn)
+
+        let arrowLabel = UILabel()
+        arrowLabel.text = "→"
+        arrowLabel.font = .systemFont(ofSize: 13)
+        arrowLabel.textColor = UIColor(white: 1, alpha: 0.45)
+        autocorrectStack.addArrangedSubview(arrowLabel)
+
+        let replacedLabel = UILabel()
+        replacedLabel.text = ac.replaced
+        replacedLabel.font = .systemFont(ofSize: 13, weight: .medium)
+        replacedLabel.textColor = UIColor(red: 1.0, green: 0.7, blue: 0.3, alpha: 1)
+        autocorrectStack.addArrangedSubview(replacedLabel)
+
+        let spacer = UIView()
+        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        autocorrectStack.addArrangedSubview(spacer)
+
+        // Dismiss button
+        let dismissBtn = chipButton(title: "✕", color: UIColor(white: 1, alpha: 0.6),
+                                    bg: chipColor.withAlphaComponent(0.4))
+        dismissBtn.addTarget(self, action: #selector(autocorrectDismissTapped), for: .touchUpInside)
+        autocorrectStack.addArrangedSubview(dismissBtn)
     }
 
     private func rebuildPredStrip() {
@@ -458,6 +536,15 @@ class ClaviKeyboardView: UIView {
     @objc private func predChipTapped(_ sender: UIButton) {
         guard sender.tag < predictionItems.count else { return }
         delegate?.didTapPrediction(predictionItems[sender.tag])
+    }
+
+    @objc private func autocorrectRejectTapped() {
+        guard let ac = autocorrectReject else { return }
+        delegate?.didTapAutocorrectReject(original: ac.original)
+    }
+
+    @objc private func autocorrectDismissTapped() {
+        delegate?.didDismissAutocorrect()
     }
 
     @objc private func translationApplyTapped() {

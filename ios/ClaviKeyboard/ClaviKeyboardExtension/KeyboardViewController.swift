@@ -35,6 +35,13 @@ class KeyboardViewController: UIInputViewController {
     private var translationEngine: TranslationEngine? = nil
     private var predictionEngine = WordPredictionEngine()
 
+    // Spell engines — loaded in background; nil = not yet loaded
+    private var spellEngineEn: SpellEngine? = nil
+    private var spellEngineUk: SpellEngine? = nil
+    private var lastAutocorrect: (original: String, replaced: String)? = nil
+
+    private static let autocorrectThreshold: Float = 0.75
+
     // MARK: - Lifecycle
 
     override func viewDidLoad() {
@@ -44,6 +51,10 @@ class KeyboardViewController: UIInputViewController {
         clipboardHistory.onChange = { [weak self] in
             self?.keyboardView.clipItems = self?.clipboardHistory.recent ?? []
         }
+
+        // Pre-warm spell engines — each SpellEngine loads its dict asynchronously
+        spellEngineEn = SpellEngine(lang: "en")
+        spellEngineUk = SpellEngine(lang: "uk")
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -140,21 +151,39 @@ class KeyboardViewController: UIInputViewController {
             flushTranslitBuffer(force: false)
             keyboardView.diacriticItems = []
             keyboardView.fixSuggestion = nil
+            keyboardView.autocorrectReject = nil
             keyboardView.predictionItems = []
         } else {
             textDocumentProxy.insertText(text)
             showDiacriticsIfNeeded(text)
 
             if text == " " || text == "\n" {
+                keyboardView.autocorrectReject = nil
+                lastAutocorrect = nil
                 let before = textDocumentProxy.documentContextBeforeInput ?? ""
                 let fix = TextFixEngine.analyze(before)
                 keyboardView.fixSuggestion = fix
                 if fix == nil {
+                    // Try autocorrect on the word just completed
+                    let lastWord = extractLastCompletedWord(before)
+                    let spell = spellEngine(for: currentLanguage)
+                    if let lastWord = lastWord, let spell = spell,
+                       shouldAutocorrect(lastWord), !spell.isCorrect(lastWord),
+                       let sug = spell.correct(lastWord),
+                       sug.confidence >= KeyboardViewController.autocorrectThreshold {
+                        // Replace: delete (word + space) then commit (corrected + space)
+                        for _ in 0..<(lastWord.count + 1) { textDocumentProxy.deleteBackward() }
+                        textDocumentProxy.insertText(sug.word + text)
+                        lastAutocorrect = (original: lastWord, replaced: sug.word)
+                        keyboardView.autocorrectReject = (original: lastWord, replaced: sug.word)
+                        // Strip taken by autocorrect undo — skip translation/prediction
+                        if shifted && !capsLock { shifted = false; updateLayout() }
+                        return
+                    }
                     keyboardView.translationSuggestion = nil
                     translationEngine?.translate(before) { [weak self] suggestion in
                         self?.keyboardView.translationSuggestion = suggestion
                     }
-                    // Word predictions (shown when translation strip also not showing)
                     keyboardView.predictionItems = predictionEngine.predict(before, language: currentLanguage)
                 } else {
                     keyboardView.translationSuggestion = nil
@@ -163,7 +192,10 @@ class KeyboardViewController: UIInputViewController {
             } else {
                 keyboardView.fixSuggestion = nil
                 keyboardView.translationSuggestion = nil
-                keyboardView.predictionItems = []
+                // Live completions as the user types
+                let before = textDocumentProxy.documentContextBeforeInput ?? ""
+                let partial = extractCurrentWord(before + text) ?? ""
+                keyboardView.predictionItems = spellEngine(for: currentLanguage)?.complete(prefix: partial) ?? []
             }
         }
 
@@ -200,6 +232,8 @@ class KeyboardViewController: UIInputViewController {
         keyboardView.diacriticItems = []
         keyboardView.fixSuggestion = nil
         keyboardView.translationSuggestion = nil
+        keyboardView.autocorrectReject = nil
+        lastAutocorrect = nil
         keyboardView.predictionItems = []
         if !translitBuffer.isEmpty {
             translitBuffer = String(translitBuffer.dropLast())
@@ -332,7 +366,58 @@ extension KeyboardViewController: ClaviKeyboardViewDelegate {
         if shifted && !capsLock { shifted = false; updateLayout() }
     }
 
+    func didTapAutocorrectReject(original: String) {
+        guard let ac = lastAutocorrect else { return }
+        // Delete replacement + trailing space, restore original + space
+        for _ in 0..<(ac.replaced.count + 1) { textDocumentProxy.deleteBackward() }
+        textDocumentProxy.insertText(ac.original + " ")
+        lastAutocorrect = nil
+        keyboardView.autocorrectReject = nil
+    }
+
+    func didDismissAutocorrect() {
+        lastAutocorrect = nil
+        keyboardView.autocorrectReject = nil
+    }
+
     func didTapNextKeyboard() {
         advanceToNextInputMode()
+    }
+}
+
+// MARK: - Spell helpers
+
+extension KeyboardViewController {
+
+    private func spellEngine(for lang: Language) -> SpellEngine? {
+        switch lang {
+        case .en: return spellEngineEn
+        case .uk: return spellEngineUk
+        default:  return nil
+        }
+    }
+
+    /// Returns the word currently being typed (no trailing space).
+    private func extractCurrentWord(_ text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .init(charactersIn: " \n"))
+        if trimmed.isEmpty { return nil }
+        let parts = trimmed.components(separatedBy: .init(charactersIn: " \n"))
+        return parts.last?.isEmpty == false ? parts.last : nil
+    }
+
+    /// Returns the last completed word (before the trailing space/newline we just committed).
+    private func extractLastCompletedWord(_ textBefore: String) -> String? {
+        let trimmed = textBefore.trimmingCharacters(in: .init(charactersIn: " \n"))
+        if trimmed.isEmpty { return nil }
+        let parts = trimmed.components(separatedBy: .init(charactersIn: " \n"))
+        return parts.last?.isEmpty == false ? parts.last : nil
+    }
+
+    /// Returns false for words that should never be auto-corrected.
+    private func shouldAutocorrect(_ word: String) -> Bool {
+        guard word.count >= 3 else { return false }
+        guard let first = word.first, !first.isUppercase else { return false }
+        if word.contains(".") || word.contains("/") || word.contains(":") || word.contains("@") { return false }
+        return true
     }
 }
